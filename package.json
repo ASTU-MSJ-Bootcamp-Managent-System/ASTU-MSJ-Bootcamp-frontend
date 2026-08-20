@@ -1,0 +1,10 @@
+{
+  "name": "astu-msj-bootcamp-frontend-root",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix ASTU-MSJ-BOOTCAMP-FRONTEND run dev",
+    "build": "npm --prefix ASTU-MSJ-BOOTCAMP-FRONTEND run build",
+    "lint": "npm --prefix ASTU-MSJ-BOOTCAMP-FRONTEND run lint",
+    "preview": "npm --prefix ASTU-MSJ-BOOTCAMP-FRONTEND run preview"
+  }
+}
