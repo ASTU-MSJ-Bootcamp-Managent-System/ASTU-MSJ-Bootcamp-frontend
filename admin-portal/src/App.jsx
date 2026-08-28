@@ -28,6 +28,7 @@ import {
   updateAttendance,
   deleteAttendance,
   getAttendanceByBatch,
+  getMentorStudents,
   approveUser,
   createUser,
   updateUserProfile,
@@ -96,9 +97,10 @@ export default function App() {
     if (!token) return;
     setLoading(true);
     try {
-      const [usersRes, batchesRes] = await Promise.all([
+      const [usersRes, batchesRes, mentorStudentsRes] = await Promise.all([
         getUsers(token),
         getBatches(token),
+        getMentorStudents(token).catch(() => ({ data: [] })),
       ]);
 
       const users = usersRes.data || [];
@@ -112,13 +114,30 @@ export default function App() {
       /* ── Students ─────────────────────────────────────────────────── */
       /* Build lookup: studentId → batchId, and studentId → mentorId */
       const studentBatchMap = {};
-      const studentMentorMap = {};
       for (const b of batches) {
         for (const s of b.students || []) {
           const sid = s._id || s;
           studentBatchMap[sid] = b._id;
-          // If student is a populated object with mentorId, track it
-          if (s.mentorId) studentMentorMap[sid] = s.mentorId;
+        }
+      }
+
+      /* Use the dedicated mentor-students endpoint for accurate mentor assignments */
+      const mentorStudentsData = mentorStudentsRes.data || [];
+      const studentMentorMap = {};
+      // Handle flat list: [{ mentor, student }, ...]
+      for (const ms of mentorStudentsData) {
+        const mId = ms.mentor?._id || ms.mentorId || ms.mentor;
+        const sId = ms.student?._id || ms.studentId || ms.student || ms._id;
+        if (mId && sId) studentMentorMap[sId] = mId;
+      }
+      // Handle grouped: [{ _id, students: [...] }]
+      if (mentorStudentsData.length > 0 && mentorStudentsData[0]?.students) {
+        for (const group of mentorStudentsData) {
+          const mId = group._id || group.mentorId || group.mentor;
+          for (const s of group.students || []) {
+            const sId = s._id || s;
+            if (mId && sId) studentMentorMap[sId] = mId;
+          }
         }
       }
 

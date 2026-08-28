@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { Toolbar, Modal } from "../components/Shared";
+import { createBatch as apiCreateBatch, deleteBatch as apiDeleteBatch } from "../../api/client";
 
 export default function Batches({
   role,
@@ -18,24 +19,14 @@ export default function Batches({
     const f = new FormData(e.currentTarget);
     setSaving(true);
     try {
-      await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || "https://astu-msj-bootcamp-backend.onrender.com"}/api/batches`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            name: f.get("name"),
-            description: f.get("description") || f.get("name"),
-            startDate: f.get("startDate") || new Date().toISOString(),
-            endDate:
-              f.get("endDate") ||
-              new Date(Date.now() + 90 * 864e5).toISOString(),
-          }),
-        },
-      );
+      await apiCreateBatch(token, {
+        name: f.get("name"),
+        description: f.get("description") || f.get("name"),
+        startDate: f.get("startDate") || new Date().toISOString(),
+        endDate:
+          f.get("endDate") ||
+          new Date(Date.now() + 90 * 864e5).toISOString(),
+      });
       await refresh();
       setOpen(false);
     } catch (err) {
@@ -47,13 +38,7 @@ export default function Batches({
 
   async function deleteBatch(id) {
     try {
-      await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || "https://astu-msj-bootcamp-backend.onrender.com"}/api/batches/${id}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      await apiDeleteBatch(token, id);
       await refresh();
     } catch (err) {
       alert(err.message || "Failed to delete batch.");

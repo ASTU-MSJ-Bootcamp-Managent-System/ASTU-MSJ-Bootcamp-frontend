@@ -12,8 +12,10 @@ import {
   getBatches,
   getAttendanceByBatch,
   getAssignments,
+  getAssignmentsByBatch,
   getMySubmissions,
   getSubmissionsByAssignment,
+  getSubmissionsByBatch,
   getAnnouncements,
   getProgressByBatch,
   getUserProfile,
@@ -24,6 +26,7 @@ import {
   enrollStudent,
   removeStudentFromBatch,
   assignMentor,
+  getMentorStudents,
   attachMentor,
   createAttendance,
   updateAttendance,
@@ -116,10 +119,11 @@ export default function StudentMentorPortal() {
       const dashRes = await getDashboard(token, role).catch(() => ({ data: {} }));
       const dash = dashRes.data || {};
 
-      const [usersRes, batchesRes, annRes] = await Promise.all([
+      const [usersRes, batchesRes, annRes, mentorStudentsRes] = await Promise.all([
         getUsers(token).catch(() => ({ data: [] })),
         getBatches(token).catch(() => ({ data: [] })),
         getAnnouncements(token).catch(() => ({ data: [] })),
+        getMentorStudents(token).catch(() => ({ data: [] })),
       ]);
 
       const users = usersRes.data || [];
@@ -141,6 +145,21 @@ export default function StudentMentorPortal() {
       const attRecords = [];
       const batchById = Object.fromEntries(batchList.map((b) => [b._id, b]));
       const userById = Object.fromEntries(users.map((u) => [u._id, u]));
+      /* Also populate from batch data — mentors/students may not appear in getUsers */
+      for (const batch of batchList) {
+        for (const m of batch.mentors || []) {
+          const mObj = typeof m === "object" ? m : null;
+          const mId = mObj?._id || m;
+          if (mId && !userById[mId]) userById[mId] = mObj || { _id: mId, name: "Mentor" };
+          if (mObj && userById[mId]) Object.assign(userById[mId], mObj);
+        }
+        for (const s of batch.students || []) {
+          const sObj = typeof s === "object" ? s : null;
+          const sId = sObj?._id || s;
+          if (sId && !userById[sId]) userById[sId] = sObj || { _id: sId, name: "Student" };
+          if (sObj && userById[sId]) Object.assign(userById[sId], sObj);
+        }
+      }
 
       for (const r of attResults) {
         if (r.status !== "fulfilled") continue;
@@ -165,30 +184,94 @@ export default function StudentMentorPortal() {
       setAttendance(attRecords);
 
       /* ── Students / People ────────────────────────────────────────── */
-      const studentUsers = users.filter((u) => u.role === "STUDENT");
-      const mentorUsers = users.filter((u) => u.role === "MENTOR");
+      /*
+       * Primary source: batch data (mentors always have access to their batches).
+       * getUsers() may return empty for mentors/students due to role restrictions,
+       * so we derive the student list from batches as the authoritative source.
+       */
 
-      const enriched = studentUsers.map((u) => {
-        const batch = batchList.find((b) =>
-          (b.students || []).some((s) => (s._id || s) === u._id),
-        );
-        const batchMentors = (batch?.mentors || []);
+      /* Helper: extract an ID from a value that may be a populated object or a plain string */
+      const extractId = (v) => (v && typeof v === "object" ? v._id || v.id : v) || null;
+      const extractName = (v, fallback) =>
+        v && typeof v === "object" ? v.name || fallback : fallback;
 
-        /* Find the student entry in the batch to get per-student mentorId */
-        const batchStudentEntry = (batch?.students || []).find(
-          (s) => (s._id || s) === u._id,
-        );
-        const perStudentMentorId =
-          batchStudentEntry?.mentorId || null;
-        const perStudentMentor = perStudentMentorId
-          ? userById[perStudentMentorId] || null
-          : null;
+      /* 1. Build student list from batch data ─────────────────────────── */
+      const batchStudentMap = {}; // studentId → user object (enriched)
+      const studentBatchMap = {}; // studentId → batch object
 
-        /* Prefer per-student mentor, fallback to batch-level first mentor */
-        const assignedMentorId = perStudentMentorId || batchMentors[0]?._id || null;
+      for (const batch of batchList) {
+        for (const s of batch.students || []) {
+          const sId = extractId(s);
+          if (!sId) continue;
+          /* Merge: prefer populated object from batch, fall back to getUsers data */
+          const fromBatch = typeof s === "object" ? s : {};
+          const fromUsers = userById[sId] || {};
+          batchStudentMap[sId] = { ...fromUsers, ...fromBatch, _id: sId };
+          studentBatchMap[sId] = batch;
+        }
+      }
+
+      /* 2. Also merge any students from getUsers that weren't in batches */
+      for (const u of users) {
+        if (u.role === "STUDENT" && !batchStudentMap[u._id]) {
+          batchStudentMap[u._id] = u;
+        }
+        /* Keep userById populated for mentor lookups */
+        userById[u._id] = u;
+      }
+
+      /* 3. Build mentor→students mapping ─────────────────────────────── */
+      const studentToMentorMap = {}; // studentId → mentorId
+
+      /* Primary: from batch data (batch.mentors → batch.students) */
+      for (const batch of batchList) {
+        const mentorIds = (batch.mentors || []).map(extractId).filter(Boolean);
+        if (mentorIds.length === 0) continue;
+        const primaryMentorId = mentorIds[0];
+        for (const s of batch.students || []) {
+          const sId = extractId(s);
+          if (sId) studentToMentorMap[sId] = primaryMentorId;
+        }
+      }
+
+      /* Supplement: from getMentorStudents endpoint */
+      const mentorStudentsData = mentorStudentsRes.data || [];
+      for (const ms of mentorStudentsData) {
+        const mId = extractId(ms.mentor) || ms.mentorId || extractId(ms);
+        /* Handle { mentor, student } pairs */
+        const sId = extractId(ms.student) || ms.studentId;
+        if (mId && sId) {
+          studentToMentorMap[sId] = mId;
+        }
+        /* Handle { _id, students: [...] } groups */
+        if (ms.students && Array.isArray(ms.students)) {
+          const groupId = extractId(ms.mentor) || ms.mentorId || ms._id;
+          for (const s of ms.students) {
+            const sid = extractId(s);
+            if (groupId && sid) studentToMentorMap[sid] = groupId;
+          }
+        }
+      }
+
+      /* Also build reverse map for mentors who need to see their mentees */
+      const mentorStudentIds = {}; // mentorId → Set<studentId>
+      for (const [sId, mId] of Object.entries(studentToMentorMap)) {
+        mentorStudentIds[mId] ??= new Set();
+        mentorStudentIds[mId].add(sId);
+      }
+
+      /* 4. Enrich each student into the people list ──────────────────── */
+      const enriched = Object.values(batchStudentMap).map((u) => {
+        const batch = studentBatchMap[u._id];
+        const batchMentors = batch?.mentors || [];
+
+        const assignedMentorId = studentToMentorMap[u._id] || null;
+        /* Resolve mentor name: try userById first, then batch mentor object, then string */
+        const assignedMentorObj = assignedMentorId ? userById[assignedMentorId] : null;
         const assignedMentorName =
-          perStudentMentor?.name ||
-          batchMentors[0]?.name ||
+          assignedMentorObj?.name ||
+          extractName(batchMentors.find((m) => extractId(m) === assignedMentorId), null) ||
+          extractName(batchMentors[0], "Unassigned") ||
           "Unassigned";
 
         const perS = attRecords.filter((a) => a.studentId === u._id);
@@ -200,22 +283,33 @@ export default function StudentMentorPortal() {
 
         return {
           _id: u._id,
-          name: u.name,
-          email: u.email,
-          role: u.role,
+          name: u.name || "Student",
+          email: u.email || "",
+          role: u.role || "STUDENT",
           batch: batch?.name || "Unassigned",
           batchId: batch?._id || null,
           mentor: assignedMentorName,
           mentorId: assignedMentorId,
-          status: u.isApproved ? "Active" : "Suspended",
+          status: u.isApproved !== false ? "Active" : "Suspended",
           attendance: attPct,
           progress: 0,
         };
       });
       setPeople(enriched);
 
-      /* ── Assignments ──────────────────────────────────────────────── */
-      const assignList = dash.assignments || [];
+      /* ── Assignments (fetch by batch for accuracy) ─────────────── */
+      let assignList = dash.assignments || [];
+      if (assignList.length === 0 && batchList.length > 0) {
+        const batchIds = batchList.map((b) => b._id);
+        const assignResults = await Promise.allSettled(
+          batchIds.map((bid) => getAssignmentsByBatch(token, bid)),
+        );
+        for (const r of assignResults) {
+          if (r.status === "fulfilled") {
+            assignList.push(...(r.value?.data || []));
+          }
+        }
+      }
       setAssignments(
         assignList.map((a) => ({
           _id: a._id,
@@ -237,6 +331,7 @@ export default function StudentMentorPortal() {
             (subRes.data || []).map((s) => ({
               _id: s._id,
               assignmentId: s.assignment?._id || s.assignment,
+              studentId: s.student?._id || s.student || me?._id,
               githubUrl: s.githubUrl,
               liveDemoUrl: s.liveDemoUrl || "",
               notes: s.notes || "",
@@ -249,7 +344,31 @@ export default function StudentMentorPortal() {
           setSubmissions([]);
         }
       } else {
-        setSubmissions(dash.submissions || []);
+        /* Mentor / Admin: fetch submissions per assignment from fetched assignments */
+        let subList = dash.submissions || [];
+        if (subList.length === 0 && assignList.length > 0) {
+          const subResults = await Promise.allSettled(
+            assignList.map((a) => getSubmissionsByAssignment(token, a._id)),
+          );
+          for (const r of subResults) {
+            if (r.status === "fulfilled") {
+              subList.push(...(r.value?.data || []));
+            }
+          }
+        }
+        setSubmissions(
+          subList.map((s) => ({
+            _id: s._id,
+            assignmentId: s.assignment?._id || s.assignment,
+            studentId: s.student?._id || s.student,
+            githubUrl: s.githubUrl,
+            liveDemoUrl: s.liveDemoUrl || "",
+            notes: s.notes || "",
+            grade: s.grade ?? null,
+            feedback: s.feedback || "",
+            status: s.status || "SUBMITTED",
+          })),
+        );
       }
 
       /* ── Announcements ────────────────────────────────────────────── */
@@ -265,8 +384,21 @@ export default function StudentMentorPortal() {
         })),
       );
 
-      /* ── Progress ─────────────────────────────────────────────────── */
-      const progList = dash.progress || [];
+      /* Store mentor→student map on window for screens that need it (debug) */
+      if (typeof window !== "undefined") window.__mentorStudentIds = mentorStudentIds;
+
+      /* ── Progress (fetch by batch for accuracy) ─────────────────── */
+      let progList = dash.progress || [];
+      if (progList.length === 0 && batchList.length > 0) {
+        const progResults = await Promise.allSettled(
+          batchList.map((b) => getProgressByBatch(token, b._id)),
+        );
+        for (const r of progResults) {
+          if (r.status === "fulfilled") {
+            progList.push(...(r.value?.data || []));
+          }
+        }
+      }
       setProgress(
         progList.map((p) => ({
           _id: p._id,

@@ -1,6 +1,6 @@
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  "https://astu-msj-bootcamp-backend.onrender.com";
+  "http://localhost:5000"; // default to localhost for development
 
 /* ── Request cache ──────────────────────────────────────────────────── */
 const _cache = new Map();
@@ -383,6 +383,14 @@ export function getSubmissions(token, query) {
 export function getSubmissionsByAssignment(token, assignmentId) {
   return protectedRequest(
     `/api/submissions/assignment/${assignmentId}`,
+    token,
+    { useCache: true },
+  );
+}
+
+export function getSubmissionsByBatch(token, batchId) {
+  return protectedRequest(
+    `/api/submissions/batch/${batchId}`,
     token,
     { useCache: true },
   );

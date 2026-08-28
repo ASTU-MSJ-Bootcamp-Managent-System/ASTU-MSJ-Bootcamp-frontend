@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Toolbar } from "../components/Shared";
+import { createAttendance as apiCreateAttendance } from "../../api/client";
 
 const statusLabel = {
   PRESENT: "Present",
@@ -106,23 +107,13 @@ export default function Attendance({
     setSaving(true);
     try {
       for (const [studentId, status] of toSave) {
-        await fetch(
-          `${import.meta.env.VITE_API_BASE_URL || "https://astu-msj-bootcamp-backend.onrender.com"}/api/attendance`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              student: studentId,
-              batch: firstBatch,
-              date: today,
-              status,
-              note: "",
-            }),
-          },
-        );
+        await apiCreateAttendance(token, {
+          student: studentId,
+          batch: firstBatch,
+          date: today,
+          status,
+          note: "",
+        });
       }
       setRecords({});
       await refresh();

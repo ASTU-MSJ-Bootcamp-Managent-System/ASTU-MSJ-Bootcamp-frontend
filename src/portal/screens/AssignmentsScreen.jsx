@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { FileText, Send, Star } from "lucide-react";
 import { Toolbar, Modal } from "../components/Shared";
+import {
+  createAssignment as apiCreateAssignment,
+  createSubmission as apiCreateSubmission,
+  gradeSubmission as apiGradeSubmission,
+} from "../../api/client";
 
 export default function Assignments({
   role,
@@ -25,24 +30,14 @@ export default function Assignments({
     setSaving(true);
     try {
       const batchId = batches[0]?._id;
-      await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || "https://astu-msj-bootcamp-backend.onrender.com"}/api/assignments`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            title: f.get("title"),
-            description: f.get("description") || "",
-            instructions: f.get("instructions") || "",
-            batch: batchId,
-            deadline: new Date(f.get("deadline")).toISOString(),
-            maximumScore: +f.get("max") || 100,
-          }),
-        },
-      );
+      await apiCreateAssignment(token, {
+        title: f.get("title"),
+        description: f.get("description") || "",
+        instructions: f.get("instructions") || "",
+        batch: batchId,
+        deadline: new Date(f.get("deadline")).toISOString(),
+        maximumScore: +f.get("max") || 100,
+      });
       await refresh();
       setCreate(false);
     } catch (err) {
@@ -58,22 +53,12 @@ export default function Assignments({
     const f = new FormData(e.currentTarget);
     setSaving(true);
     try {
-      await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || "https://astu-msj-bootcamp-backend.onrender.com"}/api/submissions`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            assignment: submit,
-            githubUrl: f.get("repo"),
-            liveDemoUrl: f.get("demo") || "",
-            notes: f.get("note") || "",
-          }),
-        },
-      );
+      await apiCreateSubmission(token, {
+        assignment: submit,
+        githubUrl: f.get("repo"),
+        liveDemoUrl: f.get("demo") || "",
+        notes: f.get("note") || "",
+      });
       await refresh();
       setSubmit(null);
     } catch (err) {
@@ -89,20 +74,10 @@ export default function Assignments({
     const f = new FormData(e.currentTarget);
     setSaving(true);
     try {
-      await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || "https://astu-msj-bootcamp-backend.onrender.com"}/api/submissions/${review.subId}/grade`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            grade: +f.get("grade"),
-            feedback: f.get("feedback"),
-          }),
-        },
-      );
+      await apiGradeSubmission(token, review.subId, {
+        grade: +f.get("grade"),
+        feedback: f.get("feedback"),
+      });
       await refresh();
       setReview(null);
     } catch (err) {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Megaphone, Trash2 } from "lucide-react";
 import { Toolbar, Modal } from "../components/Shared";
+import { createAnnouncement as apiCreateAnnouncement, deleteAnnouncement as apiDeleteAnnouncement } from "../../api/client";
 
 export default function News({
   role,
@@ -18,21 +19,11 @@ export default function News({
     const f = new FormData(e.currentTarget);
     setSaving(true);
     try {
-      await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || "https://astu-msj-bootcamp-backend.onrender.com"}/api/announcements`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            title: f.get("title"),
-            body: f.get("body"),
-            audience: f.get("audience"),
-          }),
-        },
-      );
+      await apiCreateAnnouncement(token, {
+        title: f.get("title"),
+        body: f.get("body"),
+        audience: f.get("audience"),
+      });
       await refresh();
       setOpen(false);
     } catch (err) {
@@ -44,13 +35,7 @@ export default function News({
 
   async function remove(id) {
     try {
-      await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || "https://astu-msj-bootcamp-backend.onrender.com"}/api/announcements/${id}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      await apiDeleteAnnouncement(token, id);
       await refresh();
     } catch (err) {
       alert(err.message || "Failed to delete.");

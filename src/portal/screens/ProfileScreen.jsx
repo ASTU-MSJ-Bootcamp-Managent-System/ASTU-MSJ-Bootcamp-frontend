@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Toolbar } from "../components/Shared";
+import { changePassword as apiChangePassword, updateUserProfile as apiUpdateUserProfile } from "../../api/client";
 
 export default function ProfileScreen({ token, me, refresh }) {
   const [msg, setMsg] = useState("");
@@ -17,34 +18,10 @@ export default function ProfileScreen({ token, me, refresh }) {
 
     try {
       if (newPassword) {
-        const res = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL || "https://astu-msj-bootcamp-backend.onrender.com"}/api/auth/change-password`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ currentPassword, newPassword }),
-          },
-        );
-        const data = await res.json();
-        if (!data.success) throw new Error(data.message);
+        await apiChangePassword(token, { currentPassword, newPassword });
       }
       if (name || email) {
-        const res = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL || "https://astu-msj-bootcamp-backend.onrender.com"}/api/users/profile`,
-          {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ name, email }),
-          },
-        );
-        const data = await res.json();
-        if (!data.success) throw new Error(data.message);
+        await apiUpdateUserProfile(token, { name, email });
       }
       await refresh();
       setMsg("Profile updated successfully.");

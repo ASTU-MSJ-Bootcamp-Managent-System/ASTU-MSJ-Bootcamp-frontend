@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { UserCheck, UserX } from "lucide-react";
 import { Toolbar } from "../components/Shared";
+import { approveUser as apiApproveUser, deleteUser as apiDeleteUser } from "../../api/client";
 
 export default function EnrollmentRequestsScreen({
   role,
@@ -17,16 +18,7 @@ export default function EnrollmentRequestsScreen({
   async function approve(person) {
     setProcessing(person._id);
     try {
-      await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || "https://astu-msj-bootcamp-backend.onrender.com"}/api/users/${person._id}/approve`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
+      await apiApproveUser(token, person._id);
       await refresh();
     } catch (err) {
       alert(err.message || "Failed to approve.");
@@ -38,13 +30,7 @@ export default function EnrollmentRequestsScreen({
   async function reject(person) {
     setProcessing(person._id);
     try {
-      await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || "https://astu-msj-bootcamp-backend.onrender.com"}/api/users/${person._id}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      await apiDeleteUser(token, person._id);
       await refresh();
     } catch (err) {
       alert(err.message || "Failed to reject.");
