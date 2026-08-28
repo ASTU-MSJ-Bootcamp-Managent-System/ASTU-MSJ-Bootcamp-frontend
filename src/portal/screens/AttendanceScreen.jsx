@@ -1,6 +1,11 @@
 import { useState } from "react";
+import { Edit3, Check, X } from "lucide-react";
 import { Toolbar } from "../components/Shared";
-import { createAttendance as apiCreateAttendance } from "../../api/client";
+import {
+  createAttendance as apiCreateAttendance,
+  updateAttendance as apiUpdateAttendance,
+  getAttendancePercentage as apiGetAttendancePercentage,
+} from "../../api/client";
 
 const statusLabel = {
   PRESENT: "Present",
@@ -21,6 +26,10 @@ export default function Attendance({
 }) {
   const [records, setRecords] = useState({});
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editStatus, setEditStatus] = useState("");
+  const [editNote, setEditNote] = useState("");
+  const [attPercentage, setAttPercentage] = useState(null);
 
   /* ── Students: show own attendance ──────────────────────────────── */
   if (role === "student") {
@@ -31,13 +40,23 @@ export default function Attendance({
     ).length;
     const pct = total ? Math.round((present / total) * 100) : 0;
 
+    // Fetch attendance percentage from API if we have batch info
+    const myBatchId = people.find((p) => p._id === me?._id)?.batchId;
+    if (myBatchId && attPercentage === null) {
+      apiGetAttendancePercentage(token, myBatchId, me?._id)
+        .then((res) => setAttPercentage(res.data))
+        .catch(() => {});
+    }
+
     return (
       <section className="panel work-panel">
         <Toolbar title="My attendance" />
         <div className="attendance-score">
-          <b>{pct}%</b>
+          <b>{attPercentage?.percentage ?? pct}%</b>
           <span>
-            {present} of {total} sessions attended
+            {attPercentage
+              ? `${attPercentage.present} present, ${attPercentage.late} late, ${attPercentage.absent} absent, ${attPercentage.excused} excused out of ${attPercentage.totalDays} sessions`
+              : `${present} of ${total} sessions attended`}
           </span>
         </div>
         {myRecords.length > 0 ? (
@@ -166,6 +185,36 @@ export default function Attendance({
     }
   }
 
+  /* ── Edit an existing attendance record ──────────────────────────── */
+  function startEdit(record) {
+    setEditingId(record._id);
+    setEditStatus(record.status);
+    setEditNote(record.note || "");
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditStatus("");
+    setEditNote("");
+  }
+
+  async function saveEdit(record) {
+    try {
+      await apiUpdateAttendance(token, record._id, {
+        status: editStatus,
+        note: editNote,
+      });
+      cancelEdit();
+      await refresh();
+    } catch (err) {
+      alert(err.message || "Failed to update attendance.");
+    }
+  }
+
+  /* Get existing attendance for today's date */
+  const today = new Date().toISOString().split("T")[0];
+  const todayRecords = attendance.filter((a) => a.date === today && activeStudents.some((s) => s._id === a.studentId));
+
   return (
     <section className="panel work-panel">
       <Toolbar
@@ -210,31 +259,91 @@ export default function Attendance({
             })}
           </p>
 
-          {activeStudents.map((p) => (
-            <div className="att-row" key={p._id}>
-              <div>
-                <b>{p.name}</b>
-                <small className="ml-2 text-xs text-slate-400">
-                  {p.email}
-                </small>
-                {p.batch && (
-                  <small className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
-                    {p.batch}
+          {activeStudents.map((p) => {
+            const existingRecord = todayRecords.find((r) => r.studentId === p._id);
+            const isEditing = editingId === existingRecord?._id;
+
+            return (
+              <div className="att-row" key={p._id}>
+                <div>
+                  <b>{p.name}</b>
+                  <small className="ml-2 text-xs text-slate-400">
+                    {p.email}
                   </small>
-                )}
+                  {p.batch && (
+                    <small className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
+                      {p.batch}
+                    </small>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {isEditing ? (
+                    <>
+                      <select
+                        value={editStatus}
+                        onChange={(e) => setEditStatus(e.target.value)}
+                        className="rounded border border-slate-300 px-2 py-1 text-xs"
+                      >
+                        <option value="PRESENT">Present</option>
+                        <option value="LATE">Late</option>
+                        <option value="ABSENT">Absent</option>
+                        <option value="EXCUSED">Excused</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={editNote}
+                        onChange={(e) => setEditNote(e.target.value)}
+                        placeholder="Note (optional)"
+                        className="rounded border border-slate-300 px-2 py-1 text-xs"
+                      />
+                      <button
+                        onClick={() => saveEdit(existingRecord)}
+                        className="rounded p-1 text-green-600 hover:bg-green-50"
+                        title="Save"
+                      >
+                        <Check size={16} />
+                      </button>
+                      <button
+                        onClick={cancelEdit}
+                        className="rounded p-1 text-slate-400 hover:bg-slate-100"
+                        title="Cancel"
+                      >
+                        <X size={16} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {existingRecord ? (
+                        <>
+                          <span className={`status ${existingRecord.status === "PRESENT" ? "green" : existingRecord.status === "LATE" ? "amber" : "amber"}`}>
+                            {statusLabel[existingRecord.status] || existingRecord.status}
+                          </span>
+                          <button
+                            onClick={() => startEdit(existingRecord)}
+                            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
+                            title="Edit attendance"
+                          >
+                            <Edit3 size={14} />
+                          </button>
+                        </>
+                      ) : (
+                        <select
+                          value={records[p._id] || "—"}
+                          onChange={(e) => handleChange(p._id, e.target.value)}
+                        >
+                          <option value="—">—</option>
+                          <option value="PRESENT">Present</option>
+                          <option value="LATE">Late</option>
+                          <option value="ABSENT">Absent</option>
+                          <option value="EXCUSED">Excused</option>
+                        </select>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
-              <select
-                value={records[p._id] || "—"}
-                onChange={(e) => handleChange(p._id, e.target.value)}
-              >
-                <option value="—">—</option>
-                <option value="PRESENT">Present</option>
-                <option value="LATE">Late</option>
-                <option value="ABSENT">Absent</option>
-                <option value="EXCUSED">Excused</option>
-              </select>
-            </div>
-          ))}
+            );
+          })}
         </>
       )}
     </section>

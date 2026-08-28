@@ -15,6 +15,9 @@ export default function Overview({
   submissions,
   attendance,
   progress,
+  token,
+  batches,
+  refresh,
 }) {
   /* ── Compute stats ────────────────────────────────────────────────── */
   const mySubs =
@@ -142,7 +145,7 @@ export default function Overview({
                 : "Student progress"
           }
         />
-        <Learning people={people} progress={progress} role={role} me={me} />
+        <Learning people={people} progress={progress} role={role} me={me} token={token} batches={batches} refresh={refresh} />
       </section>
     </>
   );

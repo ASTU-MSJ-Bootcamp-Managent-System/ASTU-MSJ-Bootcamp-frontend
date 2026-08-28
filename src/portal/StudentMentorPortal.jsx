@@ -23,6 +23,10 @@ import {
   assignMentor,
   getMentorStudents,
   attachMentor,
+  detachMentor,
+  enrollStudent,
+  updateUserRole,
+  updateUserProfile,
   createAttendance,
   createAssignment,
   createSubmission,
@@ -33,7 +37,6 @@ import {
   updateProgress,
   deleteProgress,
   changePassword,
-  updateUserProfile,
   clearCache,
 } from "../api/client";
 
@@ -433,11 +436,17 @@ export default function StudentMentorPortal() {
         annList.map((a) => ({
           _id: a._id,
           title: a.title,
-          body: a.body || a.content || "",
-          audience: a.audience || "All",
-          date: a.createdAt
-            ? new Date(a.createdAt).toLocaleDateString()
-            : "Unknown",
+          content: a.content || "",
+          targetAudience: a.targetAudience || "ALL",
+          batch: a.batch?._id || a.batch || null,
+          batchName: a.batch?.name || "",
+          author: a.author?.name || "",
+          publishDate: a.publishDate || a.createdAt,
+          date: a.publishDate
+            ? new Date(a.publishDate).toLocaleDateString()
+            : a.createdAt
+              ? new Date(a.createdAt).toLocaleDateString()
+              : "Unknown",
         })),
       );
 
@@ -498,6 +507,19 @@ export default function StudentMentorPortal() {
   async function handleAssignMentor(student, mentorId) {
     try {
       if (!student.batchId) throw new Error("Student is not enrolled in a batch.");
+      /* Auto-attach mentor to batch if not already there */
+      const batch = batches.find((b) => b._id === student.batchId);
+      const mentorIds = (batch?.mentors || []).map((m) => m._id || m);
+      if (!mentorIds.includes(mentorId)) {
+        try {
+          await attachMentor(token, student.batchId, mentorId);
+        } catch (attachErr) {
+          /* Ignore 409 (already attached) — continue with assignment */
+          if (!attachErr.message?.includes('already attached')) {
+            throw attachErr;
+          }
+        }
+      }
       await assignMentor(token, student.batchId, student._id, mentorId);
       await fetchData();
     } catch (e) { alert(e.message); }
@@ -527,6 +549,41 @@ export default function StudentMentorPortal() {
   async function handleRemoveStudentFromBatch(batchId, studentId) {
     try {
       await removeStudentFromBatch(token, batchId, studentId);
+      await fetchData();
+    } catch (e) { alert(e.message); }
+  }
+
+  async function handleUpdateUserRole(id, newRole) {
+    try {
+      await updateUserRole(token, id, newRole);
+      await fetchData();
+    } catch (e) { alert(e.message); }
+  }
+
+  async function handleUpdateUserProfile(id, changes) {
+    try {
+      await updateUserProfile(token, { ...changes, userId: id });
+      await fetchData();
+    } catch (e) { alert(e.message); }
+  }
+
+  async function handleEnrollStudent(batchId, studentId) {
+    try {
+      await enrollStudent(token, batchId, studentId);
+      await fetchData();
+    } catch (e) { alert(e.message); }
+  }
+
+  async function handleAttachMentor(batchId, mentorId) {
+    try {
+      await attachMentor(token, batchId, mentorId);
+      await fetchData();
+    } catch (e) { alert(e.message); }
+  }
+
+  async function handleDetachMentor(batchId, mentorId) {
+    try {
+      await detachMentor(token, batchId, mentorId);
       await fetchData();
     } catch (e) { alert(e.message); }
   }
@@ -571,6 +628,11 @@ export default function StudentMentorPortal() {
       approveUser={handleApproveUser}
       rejectUser={handleRejectUser}
       removeStudentFromBatch={handleRemoveStudentFromBatch}
+      updateUserRole={handleUpdateUserRole}
+      updateUserProfile={handleUpdateUserProfile}
+      enrollStudent={handleEnrollStudent}
+      attachMentor={handleAttachMentor}
+      detachMentor={handleDetachMentor}
     />
   );
 }

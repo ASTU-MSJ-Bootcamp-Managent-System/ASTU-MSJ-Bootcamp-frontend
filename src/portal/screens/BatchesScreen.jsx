@@ -66,6 +66,19 @@ export default function Batches({
   /* ── Assign mentor to student ─────────────────────────────────────── */
   async function handleAssignMentor(batchId, studentId, mentorId) {
     try {
+      /* Auto-attach mentor to batch if not already there */
+      const batch = batches.find((b) => b._id === batchId);
+      const mentorIds = (batch?.mentors || []).map((m) => m._id || m);
+      if (!mentorIds.includes(mentorId)) {
+        try {
+          await apiAttachMentor(token, batchId, mentorId);
+        } catch (attachErr) {
+          /* Ignore 409 (already attached) — continue with assignment */
+          if (!attachErr.message?.includes('already attached')) {
+            throw attachErr;
+          }
+        }
+      }
       await apiAssignMentor(token, batchId, studentId, mentorId);
       await refresh();
       setAssignModal(null);
