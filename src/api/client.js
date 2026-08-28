@@ -193,11 +193,8 @@ export function createUser(token, user) {
   return jsonRequest("/api/users", token, "POST", user);
 }
 
-export function updateUser(token, id, changes) {
-  clearCache("/api/users");
-  clearCache("/api/batches");
-  return jsonRequest(`/api/users/${id}`, token, "PATCH", changes);
-}
+/* updateUser removed — no generic PATCH /api/users/:id endpoint exists in the API.
+   Use approveUser, updateUserRole, or updateUserProfile instead. */
 
 export function updateUserRole(token, id, role) {
   clearCache("/api/users");

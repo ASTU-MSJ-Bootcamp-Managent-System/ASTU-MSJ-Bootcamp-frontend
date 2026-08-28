@@ -109,7 +109,7 @@ export default function Editor({ type, index, data, update, close, onSave }) {
             {field("Email address", "email", { type: "email" })}
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block text-xs font-bold">
-                Course
+                Batch
                 <select
                   name="course"
                   defaultValue={old?.course || data.courses[0]?.name || ""}
@@ -163,7 +163,7 @@ export default function Editor({ type, index, data, update, close, onSave }) {
 
         {type === "course" && (
           <>
-            {field("Course name", "name")}
+            {field("Batch name", "name")}
             {field("Description", "description")}
             <div className="grid gap-4 sm:grid-cols-2">
               {field("Start date", "startDate", { type: "date" })}

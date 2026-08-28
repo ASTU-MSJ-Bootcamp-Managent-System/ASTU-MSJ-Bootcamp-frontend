@@ -19,7 +19,6 @@ import {
   getUserProfile,
   approveUser,
   createUser,
-  updateUser,
   updateUserRole,
   deleteUser,
   enrollStudent,
@@ -174,6 +173,24 @@ export default function StudentMentorPortal() {
           (b.students || []).some((s) => (s._id || s) === u._id),
         );
         const batchMentors = (batch?.mentors || []);
+
+        /* Find the student entry in the batch to get per-student mentorId */
+        const batchStudentEntry = (batch?.students || []).find(
+          (s) => (s._id || s) === u._id,
+        );
+        const perStudentMentorId =
+          batchStudentEntry?.mentorId || null;
+        const perStudentMentor = perStudentMentorId
+          ? userById[perStudentMentorId] || null
+          : null;
+
+        /* Prefer per-student mentor, fallback to batch-level first mentor */
+        const assignedMentorId = perStudentMentorId || batchMentors[0]?._id || null;
+        const assignedMentorName =
+          perStudentMentor?.name ||
+          batchMentors[0]?.name ||
+          "Unassigned";
+
         const perS = attRecords.filter((a) => a.studentId === u._id);
         const total = perS.length;
         const present = perS.filter(
@@ -188,8 +205,8 @@ export default function StudentMentorPortal() {
           role: u.role,
           batch: batch?.name || "Unassigned",
           batchId: batch?._id || null,
-          mentor: batchMentors[0]?.name || "Unassigned",
-          mentorId: batchMentors[0]?._id || null,
+          mentor: assignedMentorName,
+          mentorId: assignedMentorId,
           status: u.isApproved ? "Active" : "Suspended",
           attendance: attPct,
           progress: 0,
@@ -312,6 +329,43 @@ export default function StudentMentorPortal() {
       />
     );
 
+  /* ── Action wrappers (call API then re-fetch) ──────────────────── */
+  async function handleAssignMentor(student, mentorId) {
+    try {
+      if (!student.batchId) throw new Error("Student is not enrolled in a batch.");
+      await assignMentor(token, student.batchId, student._id, mentorId);
+      await fetchData();
+    } catch (e) { alert(e.message); }
+  }
+
+  async function handleApproveUser(id) {
+    try {
+      await approveUser(token, id);
+      await fetchData();
+    } catch (e) { alert(e.message); }
+  }
+
+  async function handleRejectUser(id) {
+    try {
+      await deleteUser(token, id);
+      await fetchData();
+    } catch (e) { alert(e.message); }
+  }
+
+  async function handleCreateBatch(d) {
+    try {
+      await attachMentor(token, d.batchId, d.mentorId);
+      await fetchData();
+    } catch (e) { alert(e.message); }
+  }
+
+  async function handleRemoveStudentFromBatch(batchId, studentId) {
+    try {
+      await removeStudentFromBatch(token, batchId, studentId);
+      await fetchData();
+    } catch (e) { alert(e.message); }
+  }
+
   return (
     <Dashboard
       role={role}
@@ -334,6 +388,10 @@ export default function StudentMentorPortal() {
       loading={loading}
       refresh={fetchData}
       logout={signOut}
+      assignMentor={handleAssignMentor}
+      approveUser={handleApproveUser}
+      rejectUser={handleRejectUser}
+      removeStudentFromBatch={handleRemoveStudentFromBatch}
     />
   );
 }

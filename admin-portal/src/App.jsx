@@ -23,13 +23,13 @@ import {
   detachMentor,
   enrollStudent,
   removeStudentFromBatch,
+  assignMentor,
   createAttendance,
   updateAttendance,
   deleteAttendance,
   getAttendanceByBatch,
   approveUser,
   createUser,
-  updateUser,
   updateUserProfile,
   updateUserRole,
   deleteUser,
@@ -110,27 +110,51 @@ export default function App() {
       const batchById = Object.fromEntries(batches.map((b) => [b._id, b]));
 
       /* ── Students ─────────────────────────────────────────────────── */
+      /* Build lookup: studentId → batchId, and studentId → mentorId */
+      const studentBatchMap = {};
+      const studentMentorMap = {};
+      for (const b of batches) {
+        for (const s of b.students || []) {
+          const sid = s._id || s;
+          studentBatchMap[sid] = b._id;
+          // If student is a populated object with mentorId, track it
+          if (s.mentorId) studentMentorMap[sid] = s.mentorId;
+        }
+      }
+
+      const mentorsRaw = users.filter((u) => u.role === "MENTOR");
+      const mentorById = Object.fromEntries(
+        mentorsRaw.map((m) => [m._id, m]),
+      );
+
       const students = users
         .filter((u) => u.role === "STUDENT")
         .map((u) => {
-          const batch = batches.find((b) =>
-            (b.students || []).some((s) => (s._id || s) === u._id),
-          );
+          const batchId = studentBatchMap[u._id];
+          const batch = batchId ? batchById[batchId] : null;
+          const batchMentors = batch?.mentors || [];
+          const assignedMentorId = studentMentorMap[u._id];
+          let mentorName = "Unassigned";
+          if (assignedMentorId && mentorById[assignedMentorId]) {
+            mentorName = mentorById[assignedMentorId].name;
+          } else if (batchMentors[0]) {
+            mentorName = batchMentors[0].name || "Unassigned";
+          }
           return {
             _id: u._id,
             name: u.name,
             email: u.email,
             course: batch?.name || "Unassigned",
-            mentor: (batch?.mentors || [])[0]?.name || "Unassigned",
+            mentor: mentorName,
+            mentorId: assignedMentorId || batchMentors[0]?._id || null,
             status: u.isApproved ? "Active" : "Suspended",
             attendance: 0,
-            _batchId: batch?._id || null,
+            _batchId: batchId || null,
           };
         });
 
       /* ── Mentors ──────────────────────────────────────────────────── */
-      const mentors = users
-        .filter((u) => u.role === "MENTOR")
+      const mentors = mentorsRaw
         .map((u) => ({ _id: u._id, name: u.name, email: u.email }));
 
       /* ── Pending requests ─────────────────────────────────────────── */
@@ -260,10 +284,9 @@ export default function App() {
     catch (e) { alert(e.message); }
   }
 
-  async function setStudentActive(student, active) {
+  async function approveStudent(student) {
     try {
-      if (active) await approveUser(token, student._id);
-      else await updateUser(token, student._id, { isApproved: false });
+      await approveUser(token, student._id);
       await refresh();
     } catch (e) { alert(e.message); }
   }
@@ -273,6 +296,24 @@ export default function App() {
       if (student._batchId)
         await removeStudentFromBatch(token, student._batchId, student._id);
       await deleteUser(token, student._id);
+      await refresh();
+    } catch (e) { alert(e.message); }
+  }
+
+  async function assignMentorToStudent(student, mentorId) {
+    try {
+      if (!student._batchId)
+        throw new Error("Student is not enrolled in a batch.");
+      await assignMentor(token, student._batchId, student._id, mentorId);
+      await refresh();
+    } catch (e) { alert(e.message); }
+  }
+
+  async function enrollStudentInBatch(student, batchId) {
+    try {
+      if (student._batchId)
+        await removeStudentFromBatch(token, student._batchId, student._id).catch(() => {});
+      await enrollStudent(token, batchId, student._id);
       await refresh();
     } catch (e) { alert(e.message); }
   }
@@ -375,7 +416,6 @@ export default function App() {
       if (type === "student") {
         if (index !== undefined) {
           const s = data.students[index];
-          await updateUser(token, s._id, { name: v.name, email: v.email });
           if (v._batchId && v._batchId !== s._batchId) {
             if (s._batchId)
               await removeStudentFromBatch(token, s._batchId, s._id).catch(() => {});
@@ -466,8 +506,10 @@ export default function App() {
             ask={ask}
             setPage={setPage}
             promoteStudent={promoteStudentToMentor}
-            setStudentActive={setStudentActive}
+            approveStudent={approveStudent}
             removeStudent={removeStudent}
+            assignMentor={assignMentorToStudent}
+            enrollStudent={enrollStudentInBatch}
             removeMentor={removeMentor}
             approveRequest={approveRequest}
             rejectRequest={rejectRequest}

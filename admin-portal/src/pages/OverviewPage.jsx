@@ -68,7 +68,7 @@ export default function OverviewPage({ data, open, setPage }) {
           <h3 className="font-bold">Quick actions</h3>
           {[
             ["Enroll a student", "student"],
-            ["Create a course", "course"],
+            ["Create a batch", "course"],
             ["Record attendance", "attendance"],
           ].map(([label, type]) => (
             <button

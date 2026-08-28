@@ -47,7 +47,7 @@ export default function RequestsPage({
         title="Account approval queue"
         text="Requests are reviewed by administrators before access is granted."
       />
-      <Table heads={["Applicant", "Role", "Requested course", ""]}>
+      <Table heads={["Applicant", "Role", "Requested batch", ""]}>
         {data.requests.map((r, i) => (
           <tr key={r._id || r.email}>
             <td className="px-4 py-4">

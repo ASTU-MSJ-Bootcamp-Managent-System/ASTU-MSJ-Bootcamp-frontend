@@ -4,11 +4,11 @@ export default function CoursesPage({ data, update, open, ask, deleteCourse }) {
   return (
     <>
       <Intro
-        title="Courses & enrollment"
-        text="Create learning tracks and keep cohort capacity visible."
+        title="Batches & enrollment"
+        text="Create learning cohorts and manage batch rosters."
         action={() => open("course")}
       >
-        Create course
+        Create batch
       </Intro>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {data.courses.map((c, i) => {
@@ -43,8 +43,8 @@ export default function CoursesPage({ data, update, open, ask, deleteCourse }) {
                 <button
                   onClick={() =>
                     count
-                      ? alert("Move students before deleting this course.")
-                      : ask("Delete this course?", () =>
+                      ? alert("Move students before deleting this batch.")
+                      : ask("Delete this batch?", () =>
                           deleteCourse
                             ? deleteCourse(c._id)
                             : update({

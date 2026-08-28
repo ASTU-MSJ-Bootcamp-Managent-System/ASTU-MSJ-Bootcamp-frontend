@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Intro, Status, Table } from "../components/ui";
 
 export default function PeoplePage({
@@ -6,10 +7,15 @@ export default function PeoplePage({
   open,
   ask,
   promoteStudent,
-  setStudentActive,
+  approveStudent,
   removeStudent,
+  assignMentor,
+  enrollStudent,
   removeMentor,
 }) {
+  const [assigning, setAssigning] = useState(null);
+  const [enrolling, setEnrolling] = useState(null);
+
   return (
     <>
       <Intro
@@ -20,7 +26,7 @@ export default function PeoplePage({
         Enroll student
       </Intro>
       <Table
-        heads={["Student", "Course", "Mentor", "Attendance", "Status", ""]}
+        heads={["Student", "Batch", "Mentor", "Attendance", "Status", ""]}
       >
         {data.students.map((s, i) => (
           <tr key={s._id || s.email}>
@@ -28,8 +34,75 @@ export default function PeoplePage({
               <b className="block">{s.name}</b>
               <small className="text-xs text-stone-500">{s.email}</small>
             </td>
-            <td>{s.course}</td>
-            <td>{s.mentor}</td>
+            <td>
+              {s.course}
+              {!s._batchId && enrollStudent && (
+                <>
+                  {enrolling === i ? (
+                    <select
+                      className="ml-2 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-xs"
+                      autoFocus
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          enrollStudent(s, e.target.value);
+                        }
+                        setEnrolling(null);
+                      }}
+                      onBlur={() => setEnrolling(null)}
+                    >
+                      <option value="">Cancel</option>
+                      {data.courses.map((c) => (
+                        <option key={c._id} value={c._id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <button
+                      onClick={() => setEnrolling(i)}
+                      className="ml-1 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 hover:bg-amber-100"
+                    >
+                      + Enroll
+                    </button>
+                  )}
+                </>
+              )}
+            </td>
+            <td>
+              {s.mentor}
+              {assignMentor && s._batchId && (
+                <>
+                  {assigning === i ? (
+                    <select
+                      className="ml-2 rounded border border-emerald-200 bg-white px-1.5 py-0.5 text-xs"
+                      autoFocus
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          assignMentor(s, e.target.value);
+                        }
+                        setAssigning(null);
+                      }}
+                      onBlur={() => setAssigning(null)}
+                    >
+                      <option value="">Cancel</option>
+                      {data.mentors.map((m) => (
+                        <option key={m._id} value={m._id}>
+                          {m.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <button
+                      onClick={() => setAssigning(i)}
+                      className="ml-1 text-[10px] font-bold text-emerald-600 hover:underline"
+                      title="Assign mentor"
+                    >
+                      ✎
+                    </button>
+                  )}
+                </>
+              )}
+            </td>
             <td>{s.attendance}%</td>
             <td>
               <Status tone={s.status === "Active" ? "green" : "red"}>
@@ -64,32 +137,19 @@ export default function PeoplePage({
               >
                 Make mentor
               </button>
-              <button
-                onClick={() =>
-                  setStudentActive
-                    ? setStudentActive(s, s.status !== "Active")
-                    : update({
-                        students: data.students.map((x, n) =>
-                          n === i
-                            ? {
-                                ...x,
-                                status:
-                                  x.status === "Active"
-                                    ? "Suspended"
-                                    : "Active",
-                              }
-                            : x,
-                        ),
-                      })
-                }
-                className={`mr-2 rounded-md px-2.5 py-1.5 text-xs font-bold transition ${
-                  s.status === "Active"
-                    ? "border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
-                    : "border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-                }`}
-              >
-                {s.status === "Active" ? "Suspend" : "Restore"}
-              </button>
+              {s.status !== "Active" && approveStudent && (
+                <button
+                  onClick={() =>
+                    ask(
+                      `Approve ${s.name}'s account?`,
+                      () => approveStudent(s),
+                    )
+                  }
+                  className="mr-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100"
+                >
+                  Approve
+                </button>
+              )}
               <button
                 onClick={() =>
                   ask("Remove this student and their system access?", () =>

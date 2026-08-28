@@ -5,7 +5,7 @@ export const nav = [
   ["overview", "Overview"],
   ["requests", "Approval queue"],
   ["people", "People & access"],
-  ["courses", "Courses & enrollment"],
+  ["courses", "Batches & enrollment"],
   ["attendance", "Attendance"],
 ];
 
