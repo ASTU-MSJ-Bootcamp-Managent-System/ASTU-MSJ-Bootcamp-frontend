@@ -11,33 +11,23 @@ import {
   getUsers,
   getBatches,
   getAttendanceByBatch,
-  getAssignments,
   getAssignmentsByBatch,
   getMySubmissions,
   getSubmissionsByAssignment,
-  getSubmissionsByBatch,
   getAnnouncements,
   getProgressByBatch,
   getUserProfile,
   approveUser,
-  createUser,
-  updateUserRole,
   deleteUser,
-  enrollStudent,
   removeStudentFromBatch,
   assignMentor,
   getMentorStudents,
   attachMentor,
   createAttendance,
-  updateAttendance,
   createAssignment,
-  updateAssignment,
-  deleteAssignment,
   createSubmission,
   gradeSubmission,
-  requestResubmission,
   createAnnouncement,
-  updateAnnouncement,
   deleteAnnouncement,
   createProgress,
   updateProgress,
@@ -61,6 +51,10 @@ async function fetchAttThrottled(token, batches) {
   }
   return out;
 }
+
+/* ── Helpers ────────────────────────────────────────────────────────── */
+const extractId = (v) => (v && typeof v === "object" ? v._id || v.id : v) || null;
+const extractName = (v, fb) => (v && typeof v === "object" ? v.name || fb : fb);
 
 export default function StudentMentorPortal() {
   const [screen, setScreen] = useState(() =>
@@ -116,21 +110,35 @@ export default function StudentMentorPortal() {
     if (!token) return;
     setLoading(true);
     try {
-      const dashRes = await getDashboard(token, role).catch(() => ({ data: {} }));
+      /* ── 1. Fetch everything in parallel ─────────────────────────── */
+      const [dashRes, usersRes, batchesRes, annRes, mentorStudentsRes] =
+        await Promise.all([
+          getDashboard(token, role).catch(() => ({ data: {} })),
+          getUsers(token).catch(() => ({ data: [] })),
+          getBatches(token).catch(() => ({ data: [] })),
+          getAnnouncements(token).catch(() => ({ data: [] })),
+          getMentorStudents(token).catch(() => ({ data: [] })),
+        ]);
+
       const dash = dashRes.data || {};
-
-      const [usersRes, batchesRes, annRes, mentorStudentsRes] = await Promise.all([
-        getUsers(token).catch(() => ({ data: [] })),
-        getBatches(token).catch(() => ({ data: [] })),
-        getAnnouncements(token).catch(() => ({ data: [] })),
-        getMentorStudents(token).catch(() => ({ data: [] })),
-      ]);
-
       const users = usersRes.data || [];
-      const batchList = batchesRes.data || [];
+      const rawBatches = batchesRes.data || [];
       const annList = annRes.data || [];
 
-      /* ── Profile ──────────────────────────────────────────────────── */
+      /*
+       * The dashboard may include batches/students directly for non-admin roles.
+       * Merge them with the direct API results so we always have data.
+       */
+      const dashBatches = dash.batches || dash.batchList || [];
+      const dashStudents = dash.students || dash.studentList || [];
+      const batchList = rawBatches.length > 0 ? rawBatches : dashBatches;
+
+      console.log("[Portal] role:", role);
+      console.log("[Portal] users:", users.length, "batches:", batchList.length);
+      console.log("[Portal] mentorStudents:", mentorStudentsRes.data);
+      console.log("[Portal] dashboard keys:", Object.keys(dash));
+
+      /* ── 2. Profile ──────────────────────────────────────────────── */
       let profile = null;
       try {
         const pRes = await getUserProfile(token);
@@ -139,27 +147,46 @@ export default function StudentMentorPortal() {
         profile = users.find((u) => u.role?.toLowerCase() === role) || null;
       }
       setMe(profile);
+      setBatches(batchList);
 
-      /* ── Attendance (throttled per batch) ─────────────────────────── */
-      const attResults = await fetchAttThrottled(token, batchList);
-      const attRecords = [];
-      const batchById = Object.fromEntries(batchList.map((b) => [b._id, b]));
-      const userById = Object.fromEntries(users.map((u) => [u._id, u]));
-      /* Also populate from batch data — mentors/students may not appear in getUsers */
+      /* ── 3. Build userById from all sources ──────────────────────── */
+      const userById = {};
+      for (const u of users) userById[u._id] = u;
+
+      /* Enrich from batch data (mentors/students embedded in batches) */
       for (const batch of batchList) {
         for (const m of batch.mentors || []) {
           const mObj = typeof m === "object" ? m : null;
           const mId = mObj?._id || m;
-          if (mId && !userById[mId]) userById[mId] = mObj || { _id: mId, name: "Mentor" };
-          if (mObj && userById[mId]) Object.assign(userById[mId], mObj);
+          if (mId) {
+            if (!userById[mId]) userById[mId] = mObj || { _id: mId, name: "Mentor" };
+            else if (mObj) Object.assign(userById[mId], mObj);
+          }
         }
         for (const s of batch.students || []) {
           const sObj = typeof s === "object" ? s : null;
           const sId = sObj?._id || s;
-          if (sId && !userById[sId]) userById[sId] = sObj || { _id: sId, name: "Student" };
-          if (sObj && userById[sId]) Object.assign(userById[sId], sObj);
+          if (sId) {
+            if (!userById[sId]) userById[sId] = sObj || { _id: sId, name: "Student" };
+            else if (sObj) Object.assign(userById[sId], sObj);
+          }
         }
       }
+
+      /* Also include dashboard students */
+      for (const s of dashStudents) {
+        const sId = extractId(s);
+        if (sId && !userById[sId]) {
+          userById[sId] = typeof s === "object" ? s : { _id: sId, name: "Student" };
+        } else if (sId && typeof s === "object") {
+          Object.assign(userById[sId], s);
+        }
+      }
+
+      /* ── 4. Attendance ──────────────────────────────────────────── */
+      const attResults = await fetchAttThrottled(token, batchList);
+      const attRecords = [];
+      const batchById = Object.fromEntries(batchList.map((b) => [b._id, b]));
 
       for (const r of attResults) {
         if (r.status !== "fulfilled") continue;
@@ -183,90 +210,117 @@ export default function StudentMentorPortal() {
       attRecords.sort((a, b) => b.date.localeCompare(a.date));
       setAttendance(attRecords);
 
-      /* ── Students / People ────────────────────────────────────────── */
+      /* ── 5. Students / People ──────────────────────────────────── */
       /*
-       * Primary source: batch data (mentors always have access to their batches).
-       * getUsers() may return empty for mentors/students due to role restrictions,
-       * so we derive the student list from batches as the authoritative source.
+       * We build the student registry from ALL available sources.
+       * Priority: batch data > getMentorStudents > getUsers > dashboard > attendance.
+       * This ensures mentors see their students even when getUsers/getBatches are empty.
        */
-
-      /* Helper: extract an ID from a value that may be a populated object or a plain string */
-      const extractId = (v) => (v && typeof v === "object" ? v._id || v.id : v) || null;
-      const extractName = (v, fallback) =>
-        v && typeof v === "object" ? v.name || fallback : fallback;
-
-      /* 1. Build student list from batch data ─────────────────────────── */
-      const batchStudentMap = {}; // studentId → user object (enriched)
+      const studentRegistry = {}; // studentId → user object
       const studentBatchMap = {}; // studentId → batch object
+      const studentToMentorMap = {}; // studentId → mentorId
 
+      /* Source A: batch data (works for admin and mentor if batches are returned) */
       for (const batch of batchList) {
+        const mentorIds = (batch.mentors || []).map(extractId).filter(Boolean);
         for (const s of batch.students || []) {
           const sId = extractId(s);
           if (!sId) continue;
-          /* Merge: prefer populated object from batch, fall back to getUsers data */
           const fromBatch = typeof s === "object" ? s : {};
-          const fromUsers = userById[sId] || {};
-          batchStudentMap[sId] = { ...fromUsers, ...fromBatch, _id: sId };
+          studentRegistry[sId] = { ...studentRegistry[sId], ...userById[sId], ...fromBatch, _id: sId };
           studentBatchMap[sId] = batch;
+          if (mentorIds.length > 0) studentToMentorMap[sId] = mentorIds[0];
         }
       }
 
-      /* 2. Also merge any students from getUsers that weren't in batches */
-      for (const u of users) {
-        if (u.role === "STUDENT" && !batchStudentMap[u._id]) {
-          batchStudentMap[u._id] = u;
-        }
-        /* Keep userById populated for mentor lookups */
-        userById[u._id] = u;
-      }
-
-      /* 3. Build mentor→students mapping ─────────────────────────────── */
-      const studentToMentorMap = {}; // studentId → mentorId
-
-      /* Primary: from batch data (batch.mentors → batch.students) */
-      for (const batch of batchList) {
-        const mentorIds = (batch.mentors || []).map(extractId).filter(Boolean);
-        if (mentorIds.length === 0) continue;
-        const primaryMentorId = mentorIds[0];
-        for (const s of batch.students || []) {
-          const sId = extractId(s);
-          if (sId) studentToMentorMap[sId] = primaryMentorId;
-        }
-      }
-
-      /* Supplement: from getMentorStudents endpoint */
-      const mentorStudentsData = mentorStudentsRes.data || [];
-      for (const ms of mentorStudentsData) {
-        const mId = extractId(ms.mentor) || ms.mentorId || extractId(ms);
-        /* Handle { mentor, student } pairs */
-        const sId = extractId(ms.student) || ms.studentId;
+      /* Source B: getMentorStudents endpoint (mentor-specific) */
+      const msData = mentorStudentsRes.data || [];
+      for (const ms of msData) {
+        /* Flat pair: { mentor, student, batch } or { mentorId, studentId } */
+        const sId = extractId(ms.student) || ms.studentId || extractId(ms);
+        const mId = extractId(ms.mentor) || ms.mentorId;
+        const bId = extractId(ms.batch) || ms.batchId;
         if (mId && sId) {
           studentToMentorMap[sId] = mId;
+          if (!studentRegistry[sId]) {
+            const fromMs = typeof ms.student === "object" ? ms.student : {};
+            studentRegistry[sId] = { ...userById[sId], ...fromMs, _id: sId };
+          }
         }
-        /* Handle { _id, students: [...] } groups */
+        if (sId && bId && !studentBatchMap[sId]) {
+          studentBatchMap[sId] = batchList.find((b) => b._id === bId) || { _id: bId, name: "Batch" };
+        }
+        /* Grouped: { _id/mentor, students: [...] } */
         if (ms.students && Array.isArray(ms.students)) {
           const groupId = extractId(ms.mentor) || ms.mentorId || ms._id;
           for (const s of ms.students) {
-            const sid = extractId(s);
-            if (groupId && sid) studentToMentorMap[sid] = groupId;
+            const sid = extractId(s) || (typeof s === "object" ? s._id : null);
+            if (!sid) continue;
+            if (groupId) studentToMentorMap[sid] = groupId;
+            if (!studentRegistry[sid]) {
+              const fromS = typeof s === "object" ? s : {};
+              studentRegistry[sid] = { ...userById[sid], ...fromS, _id: sid };
+            }
           }
         }
       }
 
-      /* Also build reverse map for mentors who need to see their mentees */
-      const mentorStudentIds = {}; // mentorId → Set<studentId>
+      /* Source C: getUsers (may be empty for non-admins, but include anyway) */
+      for (const u of users) {
+        if (u.role === "STUDENT" && !studentRegistry[u._id]) {
+          studentRegistry[u._id] = u;
+        } else if (u.role === "STUDENT" && studentRegistry[u._id]) {
+          Object.assign(studentRegistry[u._id], u);
+        }
+      }
+
+      /* Source D: dashboard students */
+      for (const s of dashStudents) {
+        const sId = extractId(s);
+        if (sId && !studentRegistry[sId]) {
+          studentRegistry[sId] = typeof s === "object" ? s : { _id: sId, name: "Student" };
+          /* If dashboard student has batch info, use it */
+          if (s.batch) {
+            const bId = extractId(s.batch);
+            if (bId && !studentBatchMap[sId]) {
+              studentBatchMap[sId] = batchList.find((b) => b._id === bId) || { _id: bId, name: s.batch?.name || "Batch" };
+            }
+          }
+          if (s.mentor || s.mentorId) {
+            const mId = extractId(s.mentor) || s.mentorId;
+            if (mId) studentToMentorMap[sId] = mId;
+          }
+        }
+      }
+
+      /* Source E: attendance records (students referenced in attendance) */
+      for (const rec of attRecords) {
+        const sId = rec.studentId;
+        if (sId && !studentRegistry[sId]) {
+          studentRegistry[sId] = { _id: sId, name: rec.studentName || "Student" };
+          if (rec.batchId && !studentBatchMap[sId]) {
+            studentBatchMap[sId] = batchById[rec.batchId] || { _id: rec.batchId, name: rec.batchName || "Batch" };
+          }
+        }
+      }
+
+      /* Also build reverse map: mentorId → Set<studentId> */
+      const mentorStudentIds = {};
       for (const [sId, mId] of Object.entries(studentToMentorMap)) {
         mentorStudentIds[mId] ??= new Set();
         mentorStudentIds[mId].add(sId);
       }
 
-      /* 4. Enrich each student into the people list ──────────────────── */
-      const enriched = Object.values(batchStudentMap).map((u) => {
+      console.log("[Portal] studentRegistry:", Object.keys(studentRegistry).length, "students");
+      console.log("[Portal] studentToMentorMap:", studentToMentorMap);
+      console.log("[Portal] me:", profile?._id, profile?.name);
+
+      /* ── 6. Enrich each student into the people list ────────────── */
+      const enriched = Object.values(studentRegistry).map((u) => {
         const batch = studentBatchMap[u._id];
         const batchMentors = batch?.mentors || [];
 
         const assignedMentorId = studentToMentorMap[u._id] || null;
-        /* Resolve mentor name: try userById first, then batch mentor object, then string */
         const assignedMentorObj = assignedMentorId ? userById[assignedMentorId] : null;
         const assignedMentorName =
           assignedMentorObj?.name ||
@@ -295,9 +349,11 @@ export default function StudentMentorPortal() {
           progress: 0,
         };
       });
+
+      console.log("[Portal] enriched people:", enriched.length, "total");
       setPeople(enriched);
 
-      /* ── Assignments (fetch by batch for accuracy) ─────────────── */
+      /* ── 7. Assignments ────────────────────────────────────────── */
       let assignList = dash.assignments || [];
       if (assignList.length === 0 && batchList.length > 0) {
         const batchIds = batchList.map((b) => b._id);
@@ -310,6 +366,7 @@ export default function StudentMentorPortal() {
           }
         }
       }
+
       setAssignments(
         assignList.map((a) => ({
           _id: a._id,
@@ -323,7 +380,7 @@ export default function StudentMentorPortal() {
         })),
       );
 
-      /* ── Submissions ──────────────────────────────────────────────── */
+      /* ── 8. Submissions ────────────────────────────────────────── */
       if (role === "student") {
         try {
           const subRes = await getMySubmissions(token);
@@ -331,7 +388,7 @@ export default function StudentMentorPortal() {
             (subRes.data || []).map((s) => ({
               _id: s._id,
               assignmentId: s.assignment?._id || s.assignment,
-              studentId: s.student?._id || s.student || me?._id,
+              studentId: s.student?._id || s.student || profile?._id,
               githubUrl: s.githubUrl,
               liveDemoUrl: s.liveDemoUrl || "",
               notes: s.notes || "",
@@ -344,7 +401,7 @@ export default function StudentMentorPortal() {
           setSubmissions([]);
         }
       } else {
-        /* Mentor / Admin: fetch submissions per assignment from fetched assignments */
+        /* Mentor / Admin: use dashboard submissions first, then fetch per-assignment */
         let subList = dash.submissions || [];
         if (subList.length === 0 && assignList.length > 0) {
           const subResults = await Promise.allSettled(
@@ -371,7 +428,7 @@ export default function StudentMentorPortal() {
         );
       }
 
-      /* ── Announcements ────────────────────────────────────────────── */
+      /* ── 9. Announcements ──────────────────────────────────────── */
       setAnnouncements(
         annList.map((a) => ({
           _id: a._id,
@@ -384,10 +441,7 @@ export default function StudentMentorPortal() {
         })),
       );
 
-      /* Store mentor→student map on window for screens that need it (debug) */
-      if (typeof window !== "undefined") window.__mentorStudentIds = mentorStudentIds;
-
-      /* ── Progress (fetch by batch for accuracy) ─────────────────── */
+      /* ── 10. Progress ──────────────────────────────────────────── */
       let progList = dash.progress || [];
       if (progList.length === 0 && batchList.length > 0) {
         const progResults = await Promise.allSettled(
@@ -440,28 +494,7 @@ export default function StudentMentorPortal() {
     setProgress([]);
   }
 
-  /* ── Render ───────────────────────────────────────────────────────── */
-  if (screen === "forgot")
-    return (
-      <ForgotPortal
-        back={() => setScreen("login")}
-        requestReset={requestPasswordReset}
-      />
-    );
-
-  if (screen !== "app")
-    return (
-      <Login
-        mode={screen}
-        login={signIn}
-        requestAccount={requestAccount}
-        forgot={() => setScreen("forgot")}
-        back={() => setScreen("login")}
-        createAccount={() => setScreen("register")}
-      />
-    );
-
-  /* ── Action wrappers (call API then re-fetch) ──────────────────── */
+  /* ── Action wrappers ──────────────────────────────────────────── */
   async function handleAssignMentor(student, mentorId) {
     try {
       if (!student.batchId) throw new Error("Student is not enrolled in a batch.");
@@ -496,6 +529,20 @@ export default function StudentMentorPortal() {
       await removeStudentFromBatch(token, batchId, studentId);
       await fetchData();
     } catch (e) { alert(e.message); }
+  }
+
+  /* ── Auth screens ───────────────────────────────────────────────── */
+  if (screen !== "app") {
+    return (
+      <Login
+        mode={screen === "register" ? "register" : undefined}
+        login={signIn}
+        forgot={() => setScreen("forgot")}
+        back={() => setScreen("login")}
+        createAccount={() => setScreen("register")}
+        requestAccount={requestAccount}
+      />
+    );
   }
 
   return (

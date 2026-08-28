@@ -126,8 +126,19 @@ function jsonRequest(path, token, method, body) {
   });
 }
 
-/* ── Auth ───────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════
+   Auth — Authentication and password management
+   ═══════════════════════════════════════════════════════════════════════ */
 
+/** POST /api/auth/register — Register a student */
+export function registerStudent(details) {
+  return request("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify(details),
+  });
+}
+
+/** POST /api/auth/login — Login */
 export function loginUser(credentials) {
   return request("/api/auth/login", {
     method: "POST",
@@ -136,19 +147,10 @@ export function loginUser(credentials) {
 }
 
 export function loginAdmin(credentials) {
-  return request("/api/auth/login", {
-    method: "POST",
-    body: JSON.stringify(credentials),
-  });
+  return loginUser(credentials);
 }
 
-export function registerStudent(details) {
-  return request("/api/auth/register", {
-    method: "POST",
-    body: JSON.stringify(details),
-  });
-}
-
+/** POST /api/auth/reset-password/request — Request password reset */
 export function requestPasswordReset(email) {
   return request("/api/auth/reset-password/request", {
     method: "POST",
@@ -156,6 +158,7 @@ export function requestPasswordReset(email) {
   });
 }
 
+/** POST /api/auth/reset-password/confirm — Confirm password reset */
 export function resetPasswordConfirm(token, newPassword) {
   return request("/api/auth/reset-password/confirm", {
     method: "POST",
@@ -163,44 +166,63 @@ export function resetPasswordConfirm(token, newPassword) {
   });
 }
 
+/** POST /api/auth/logout — Logout */
 export function logoutUser(token) {
   clearCache();
   return request("/api/auth/logout", { method: "POST", token });
 }
 
-export function getCurrentUser(token) {
-  return request("/api/users/me", { token, useCache: true });
+/** POST /api/auth/change-password — Change current user's password */
+export function changePassword(token, body) {
+  return jsonRequest("/api/auth/change-password", token, "POST", body);
 }
 
-export function getCurrentAdmin(token) {
-  return request("/api/admin/auth/me", { token });
-}
+/* ═══════════════════════════════════════════════════════════════════════
+   Users — User management and profiles
+   ═══════════════════════════════════════════════════════════════════════ */
 
-/* ── Users ──────────────────────────────────────────────────────────── */
-
+/** GET /api/users — Get all users */
 export function getUsers(token, query) {
   return protectedRequest(`/api/users${queryString(query)}`, token, {
     useCache: true,
   });
 }
 
+/** GET /api/users/profile — Get current user profile */
+export function getUserProfile(token) {
+  return protectedRequest("/api/users/profile", token, { useCache: true });
+}
+
+/** PATCH /api/users/profile — Update current user profile */
+export function updateUserProfile(token, body) {
+  clearCache("/api/users");
+  return jsonRequest("/api/users/profile", token, "PATCH", body);
+}
+
+/** GET /api/users/:id — Get user by ID */
 export function getUserById(token, id) {
   return protectedRequest(`/api/users/${id}`, token, { useCache: true });
 }
 
+/** POST /api/users — Create a user (admin only) */
 export function createUser(token, user) {
   clearCache("/api/users");
   return jsonRequest("/api/users", token, "POST", user);
 }
 
-/* updateUser removed — no generic PATCH /api/users/:id endpoint exists in the API.
-   Use approveUser, updateUserRole, or updateUserProfile instead. */
+/** PATCH /api/users/:id/approve — Approve a student account */
+export function approveUser(token, id) {
+  clearCache("/api/users");
+  return jsonRequest(`/api/users/${id}/approve`, token, "PATCH");
+}
 
+/** PATCH /api/users/:id/role — Change user role */
 export function updateUserRole(token, id, role) {
   clearCache("/api/users");
   return jsonRequest(`/api/users/${id}/role`, token, "PATCH", { role });
 }
 
+/** DELETE /api/users/:id — Delete user */
 export function deleteUser(token, id) {
   clearCache("/api/users");
   clearCache("/api/batches");
@@ -208,30 +230,42 @@ export function deleteUser(token, id) {
   return protectedRequest(`/api/users/${id}`, token, { method: "DELETE" });
 }
 
-/* ── Batches ────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════
+   Batches — Bootcamp batch and roster management
+   ═══════════════════════════════════════════════════════════════════════ */
 
+/** GET /api/batches — Get all batches */
 export function getBatches(token, query) {
   return protectedRequest(`/api/batches${queryString(query)}`, token, {
     useCache: true,
   });
 }
 
+/** POST /api/batches — Create batch */
 export function createBatch(token, batch) {
   clearCache("/api/batches");
   return jsonRequest("/api/batches", token, "POST", batch);
 }
 
+/** GET /api/batches/:id — Get batch by ID */
+export function getBatchById(token, id) {
+  return protectedRequest(`/api/batches/${id}`, token, { useCache: true });
+}
+
+/** PATCH /api/batches/:id — Update batch */
 export function updateBatch(token, id, changes) {
   clearCache("/api/batches");
   return jsonRequest(`/api/batches/${id}`, token, "PATCH", changes);
 }
 
+/** DELETE /api/batches/:id — Delete batch */
 export function deleteBatch(token, id) {
   clearCache("/api/batches");
   clearCache("/api/attendance");
   return protectedRequest(`/api/batches/${id}`, token, { method: "DELETE" });
 }
 
+/** POST /api/batches/:id/mentors — Attach mentor to batch */
 export function attachMentor(token, batchId, mentorId) {
   clearCache("/api/batches");
   return jsonRequest(`/api/batches/${batchId}/mentors`, token, "POST", {
@@ -239,6 +273,7 @@ export function attachMentor(token, batchId, mentorId) {
   });
 }
 
+/** DELETE /api/batches/:id/mentors/:mentorId — Detach mentor from batch */
 export function detachMentor(token, batchId, mentorId) {
   clearCache("/api/batches");
   return protectedRequest(
@@ -248,6 +283,7 @@ export function detachMentor(token, batchId, mentorId) {
   );
 }
 
+/** POST /api/batches/:id/students — Enroll student into batch */
 export function enrollStudent(token, batchId, studentId) {
   clearCache("/api/batches");
   return jsonRequest(`/api/batches/${batchId}/students`, token, "POST", {
@@ -255,6 +291,7 @@ export function enrollStudent(token, batchId, studentId) {
   });
 }
 
+/** DELETE /api/batches/:id/students/:studentId — Remove student from batch */
 export function removeStudentFromBatch(token, batchId, studentId) {
   clearCache("/api/batches");
   return protectedRequest(
@@ -264,6 +301,7 @@ export function removeStudentFromBatch(token, batchId, studentId) {
   );
 }
 
+/** POST /api/batches/:id/students/:studentId/assign-mentor — Assign mentor to student */
 export function assignMentor(token, batchId, studentId, mentorId) {
   clearCache("/api/batches");
   return jsonRequest(
@@ -274,97 +312,123 @@ export function assignMentor(token, batchId, studentId, mentorId) {
   );
 }
 
+/** GET /api/batches/mentor-students — Get mentor student roster */
 export function getMentorStudents(token) {
   return protectedRequest("/api/batches/mentor-students", token, {
     useCache: true,
   });
 }
 
-/* ── Attendance ─────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════
+   Attendance — Student attendance management
+   ═══════════════════════════════════════════════════════════════════════ */
 
-export function getAttendance(token, query) {
-  return protectedRequest(`/api/attendance${queryString(query)}`, token, {
-    useCache: true,
-  });
+/** POST /api/attendance — Record attendance */
+export function createAttendance(token, record) {
+  clearCache("/api/attendance");
+  return jsonRequest("/api/attendance", token, "POST", record);
 }
 
+/** PATCH /api/attendance/:id — Update attendance */
+export function updateAttendance(token, id, changes) {
+  clearCache("/api/attendance");
+  return jsonRequest(`/api/attendance/${id}`, token, "PATCH", changes);
+}
+
+/** GET /api/attendance/batch/:batchId — Get attendance by batch */
 export function getAttendanceByBatch(token, batchId) {
   return protectedRequest(`/api/attendance/batch/${batchId}`, token, {
     useCache: true,
   });
 }
 
-export function createAttendance(token, record) {
-  clearCache("/api/attendance");
-  return jsonRequest("/api/attendance", token, "POST", record);
-}
-
-export function updateAttendance(token, id, changes) {
-  clearCache("/api/attendance");
-  return jsonRequest(`/api/attendance/${id}`, token, "PATCH", changes);
-}
-
-export function deleteAttendance(token, id) {
-  clearCache("/api/attendance");
-  return protectedRequest(`/api/attendance/${id}`, token, { method: "DELETE" });
-}
-
-export function getAttendancePercentage(token, query) {
+/** GET /api/attendance/batch/:batchId/student/:studentId/percentage — Get student attendance percentage */
+export function getAttendancePercentage(token, batchId, studentId) {
   return protectedRequest(
-    `/api/attendance/percentage${queryString(query)}`,
+    `/api/attendance/batch/${batchId}/student/${studentId}/percentage`,
     token,
     { useCache: true },
   );
 }
 
-/* ── Progress ───────────────────────────────────────────────────────── */
-
-export function getProgress(token, query) {
-  return protectedRequest(`/api/progress${queryString(query)}`, token, {
-    useCache: true,
-  });
+/** DELETE /api/attendance/:id — Delete attendance */
+export function deleteAttendance(token, id) {
+  clearCache("/api/attendance");
+  return protectedRequest(`/api/attendance/${id}`, token, { method: "DELETE" });
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   Progress — Student learning progress tracking
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/** POST /api/progress — Record student progress */
+export function createProgress(token, entry) {
+  clearCache("/api/progress");
+  return jsonRequest("/api/progress", token, "POST", entry);
+}
+
+/** GET /api/progress/batch/:batchId — Get progress by batch */
 export function getProgressByBatch(token, batchId) {
   return protectedRequest(`/api/progress/batch/${batchId}`, token, {
     useCache: true,
   });
 }
 
-export function createProgress(token, entry) {
-  clearCache("/api/progress");
-  return jsonRequest("/api/progress", token, "POST", entry);
+/** GET /api/progress/batch/:batchId/student/:studentId — Get student progress */
+export function getProgressByStudent(token, batchId, studentId) {
+  return protectedRequest(
+    `/api/progress/batch/${batchId}/student/${studentId}`,
+    token,
+    { useCache: true },
+  );
 }
 
+/** GET /api/progress/:id — Get progress by ID */
+export function getProgressById(token, id) {
+  return protectedRequest(`/api/progress/${id}`, token, { useCache: true });
+}
+
+/** PATCH /api/progress/:id — Update progress */
 export function updateProgress(token, id, changes) {
   clearCache("/api/progress");
   return jsonRequest(`/api/progress/${id}`, token, "PATCH", changes);
 }
 
-/* ── Assignments ────────────────────────────────────────────────────── */
-
-export function getAssignments(token, query) {
-  return protectedRequest(`/api/assignments${queryString(query)}`, token, {
-    useCache: true,
-  });
+/** DELETE /api/progress/:id — Delete progress */
+export function deleteProgress(token, id) {
+  clearCache("/api/progress");
+  return protectedRequest(`/api/progress/${id}`, token, { method: "DELETE" });
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   Assignments — Assignment management
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/** POST /api/assignments — Create assignment */
+export function createAssignment(token, assignment) {
+  clearCache("/api/assignments");
+  return jsonRequest("/api/assignments", token, "POST", assignment);
+}
+
+/** GET /api/assignments/batch/:batchId — Get assignments by batch */
 export function getAssignmentsByBatch(token, batchId) {
   return protectedRequest(`/api/assignments/batch/${batchId}`, token, {
     useCache: true,
   });
 }
 
-export function createAssignment(token, assignment) {
-  clearCache("/api/assignments");
-  return jsonRequest("/api/assignments", token, "POST", assignment);
+/** GET /api/assignments/:id — Get assignment by ID */
+export function getAssignmentById(token, id) {
+  return protectedRequest(`/api/assignments/${id}`, token, { useCache: true });
 }
 
+/** PATCH /api/assignments/:id — Update assignment */
 export function updateAssignment(token, id, changes) {
   clearCache("/api/assignments");
   return jsonRequest(`/api/assignments/${id}`, token, "PATCH", changes);
 }
 
+/** DELETE /api/assignments/:id — Delete assignment */
 export function deleteAssignment(token, id) {
   clearCache("/api/assignments");
   return protectedRequest(`/api/assignments/${id}`, token, {
@@ -372,14 +436,22 @@ export function deleteAssignment(token, id) {
   });
 }
 
-/* ── Submissions ────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════
+   Submissions — Assignment submission and grading workflow
+   ═══════════════════════════════════════════════════════════════════════ */
 
-export function getSubmissions(token, query) {
-  return protectedRequest(`/api/submissions${queryString(query)}`, token, {
-    useCache: true,
-  });
+/** POST /api/submissions — Submit assignment */
+export function createSubmission(token, submission) {
+  clearCache("/api/submissions");
+  return jsonRequest("/api/submissions", token, "POST", submission);
 }
 
+/** GET /api/submissions/my — Get current student's submissions */
+export function getMySubmissions(token) {
+  return protectedRequest("/api/submissions/my", token, { useCache: true });
+}
+
+/** GET /api/submissions/assignment/:assignmentId — Get submissions for an assignment */
 export function getSubmissionsByAssignment(token, assignmentId) {
   return protectedRequest(
     `/api/submissions/assignment/${assignmentId}`,
@@ -388,29 +460,24 @@ export function getSubmissionsByAssignment(token, assignmentId) {
   );
 }
 
-export function getSubmissionsByBatch(token, batchId) {
-  return protectedRequest(
-    `/api/submissions/batch/${batchId}`,
-    token,
-    { useCache: true },
-  );
+/** GET /api/submissions/:id — Get submission by ID */
+export function getSubmissionById(token, id) {
+  return protectedRequest(`/api/submissions/${id}`, token, { useCache: true });
 }
 
-export function createSubmission(token, submission) {
-  clearCache("/api/submissions");
-  return jsonRequest("/api/submissions", token, "POST", submission);
-}
-
-export function updateSubmission(token, id, changes) {
-  clearCache("/api/submissions");
-  return jsonRequest(`/api/submissions/${id}`, token, "PATCH", changes);
-}
-
+/** PATCH /api/submissions/:id/grade — Grade submission */
 export function gradeSubmission(token, id, body) {
   clearCache("/api/submissions");
   return jsonRequest(`/api/submissions/${id}/grade`, token, "PATCH", body);
 }
 
+/** PATCH /api/submissions/:id/resubmit — Resubmit assignment */
+export function resubmitSubmission(token, id, body) {
+  clearCache("/api/submissions");
+  return jsonRequest(`/api/submissions/${id}/resubmit`, token, "PATCH", body);
+}
+
+/** PATCH /api/submissions/:id/request-resubmission — Request submission resubmission */
 export function requestResubmission(token, id) {
   clearCache("/api/submissions");
   return jsonRequest(
@@ -420,24 +487,37 @@ export function requestResubmission(token, id) {
   );
 }
 
-/* ── Announcements ──────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════
+   Announcements — Bootcamp announcements
+   ═══════════════════════════════════════════════════════════════════════ */
 
+/** GET /api/announcements — Get announcements */
 export function getAnnouncements(token, query) {
   return protectedRequest(`/api/announcements${queryString(query)}`, token, {
     useCache: true,
   });
 }
 
+/** POST /api/announcements — Create announcement */
 export function createAnnouncement(token, announcement) {
   clearCache("/api/announcements");
   return jsonRequest("/api/announcements", token, "POST", announcement);
 }
 
+/** GET /api/announcements/:id — Get announcement by ID */
+export function getAnnouncementById(token, id) {
+  return protectedRequest(`/api/announcements/${id}`, token, {
+    useCache: true,
+  });
+}
+
+/** PATCH /api/announcements/:id — Update announcement */
 export function updateAnnouncement(token, id, changes) {
   clearCache("/api/announcements");
   return jsonRequest(`/api/announcements/${id}`, token, "PATCH", changes);
 }
 
+/** DELETE /api/announcements/:id — Delete announcement */
 export function deleteAnnouncement(token, id) {
   clearCache("/api/announcements");
   return protectedRequest(`/api/announcements/${id}`, token, {
@@ -445,45 +525,13 @@ export function deleteAnnouncement(token, id) {
   });
 }
 
-/* ── Dashboard ──────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════
+   Dashboard — Role-based dashboards
+   ═══════════════════════════════════════════════════════════════════════ */
 
+/** GET /api/dashboard/:role — Get role-based dashboard (admin/mentor/student) */
 export function getDashboard(token, role) {
   return protectedRequest(`/api/dashboard/${role.toLowerCase()}`, token, {
     useCache: true,
   });
-}
-
-/* ── Admin auth ─────────────────────────────────────────────────────── */
-
-export function approveUser(token, id) {
-  clearCache("/api/users");
-  return jsonRequest(`/api/users/${id}/approve`, token, "PATCH");
-}
-
-export function changePassword(token, body) {
-  return jsonRequest("/api/auth/change-password", token, "POST", body);
-}
-
-/* ── Profile ────────────────────────────────────────────────────────── */
-
-export function getUserProfile(token) {
-  return protectedRequest("/api/users/profile", token, { useCache: true });
-}
-
-export function updateUserProfile(token, body) {
-  clearCache("/api/users");
-  return jsonRequest("/api/users/profile", token, "PATCH", body);
-}
-
-/* ── Submissions (student's own) ──────────────────────────────────── */
-
-export function getMySubmissions(token) {
-  return protectedRequest("/api/submissions/my", token, { useCache: true });
-}
-
-/* ── Progress (delete) ────────────────────────────────────────────── */
-
-export function deleteProgress(token, id) {
-  clearCache("/api/progress");
-  return protectedRequest(`/api/progress/${id}`, token, { method: "DELETE" });
 }
