@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
+import myLordImg from "../data/my-lord.webp";
 
 const field =
   "mt-2 block w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100";
@@ -15,20 +16,19 @@ export function Mark() {
 function Shell({ children }) {
   return (
     <main className="grid min-h-screen lg:grid-cols-2">
-      <section className="hidden bg-emerald-950 p-10 text-stone-50 lg:flex lg:flex-col">
-        <div className="flex items-center gap-3 text-xs font-bold tracking-widest">
-          <Mark />
-          MSJ SUMMER BOOTCAMP
+      <section className="relative hidden overflow-hidden rounded-2xl border-2 border-emerald-700/40 m-2 text-stone-50 lg:flex lg:flex-col">
+        <div className="absolute inset-0">
+          <img
+            src={myLordImg}
+            alt="ASTU Bootcamp"
+            className="h-full w-full object-cover"
+          />
         </div>
-        <div className="my-auto">
-          <p className="mb-4 text-xs font-semibold tracking-widest text-emerald-200">
-            ASTU · EST. 2021
-          </p>
-          <h1 className="font-serif text-6xl font-semibold leading-tight">
-            Learn deeply.
-            <br />
-            <em className="text-amber-300">Build boldly.</em>
-          </h1>
+        <div className="relative z-10 p-8">
+          <div className="inline-flex items-center gap-3 rounded-xl bg-black/40 px-4 py-3 backdrop-blur-md">
+            <Mark />
+            <span className="text-sm font-bold tracking-widest">ASTU · MSJ</span>
+          </div>
         </div>
       </section>
       <section className="grid place-items-center bg-slate-50 p-6">
