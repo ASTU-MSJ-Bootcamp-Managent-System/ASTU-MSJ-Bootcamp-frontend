@@ -323,15 +323,11 @@ export default function StudentMentorPortal() {
         const batch = studentBatchMap[u._id];
         const batchMentors = batch?.mentors || [];
 
-        /* Use the DB's assignedMentor field as the source of truth.
-           Fall back to studentToMentorMap (from batch/roster data) only if needed. */
-        const rawMentorId = u.assignedMentor || studentToMentorMap[u._id] || null;
-        const assignedMentorId = rawMentorId ? String(rawMentorId) : null;
+        /* Use ONLY the DB's assignedMentor field — never guess from batch membership.
+           If assignedMentor is null, the student has no mentor. */
+        const assignedMentorId = u.assignedMentor ? String(u.assignedMentor) : null;
         const assignedMentorObj = assignedMentorId ? userById[assignedMentorId] : null;
-        const assignedMentorName =
-          assignedMentorObj?.name ||
-          extractName(batchMentors.find((m) => String(extractId(m)) === assignedMentorId), null) ||
-          "Unassigned";
+        const assignedMentorName = assignedMentorObj?.name || "Unassigned";
 
         const perS = attRecords.filter((a) => a.studentId === u._id);
         const total = perS.length;
