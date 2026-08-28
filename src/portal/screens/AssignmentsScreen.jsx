@@ -9,6 +9,7 @@ import {
 
 export default function Assignments({
   role,
+  me,
   token,
   assignments,
   setAssignments,
@@ -23,13 +24,19 @@ export default function Assignments({
   const [review, setReview] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  /* Student's own batch for filtering assignments */
+  const myBatchId =
+    role === "student"
+      ? people.find((p) => p._id === me?._id)?.batchId || batches[0]?._id
+      : null;
+
   /* ── Create assignment (mentor/admin) ─────────────────────────────── */
   async function publish(e) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     setSaving(true);
     try {
-      const batchId = batches[0]?._id;
+      const batchId = f.get("batch") || batches[0]?._id;
       await apiCreateAssignment(token, {
         title: f.get("title"),
         description: f.get("description") || "",
@@ -72,11 +79,26 @@ export default function Assignments({
   async function grade(e) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
+    const score = Number(f.get("grade"));
+    const max = review.maximumScore || 100;
+    if (Number.isNaN(score) || score < 0 || score > max) {
+      alert(`Score must be between 0 and ${max}.`);
+      return;
+    }
+    const feedbackText = (f.get("feedback") || "").trim();
+    if (!feedbackText) {
+      alert("Please enter feedback before publishing.");
+      return;
+    }
+    if (!review.subId) {
+      alert("Could not identify the submission to grade. Please refresh and try again.");
+      return;
+    }
     setSaving(true);
     try {
       await apiGradeSubmission(token, review.subId, {
-        grade: +f.get("grade"),
-        feedback: f.get("feedback"),
+        grade: score,
+        feedback: feedbackText,
       });
       await refresh();
       setReview(null);
@@ -87,6 +109,12 @@ export default function Assignments({
     }
   }
 
+  /* ── Filter assignments for students to their batch ─────────────── */
+  const filtered =
+    role === "student" && myBatchId
+      ? assignments.filter((a) => a.batch === myBatchId)
+      : assignments;
+
   return (
     <section className="panel work-panel">
       <Toolbar
@@ -94,10 +122,14 @@ export default function Assignments({
         action={role === "student" ? null : "Create assignment"}
         onAction={() => setCreate(true)}
       />
-      {assignments.length === 0 ? (
-        <p className="empty-state">No assignments yet.</p>
+      {filtered.length === 0 ? (
+        <p className="empty-state">
+          {role === "student"
+            ? "No assignments for your batch yet."
+            : "No assignments yet."}
+        </p>
       ) : (
-        assignments.map((a) => {
+        filtered.map((a) => {
           const mySub = submissions.find(
             (s) => s.assignmentId === a._id,
           );
@@ -178,6 +210,7 @@ export default function Assignments({
                         people.find(
                           (p) => p._id === pendingSubs[0].studentId,
                         )?.name || "Student",
+                      maximumScore: a.maximumScore || 100,
                     })
                   }
                 >
@@ -204,6 +237,16 @@ export default function Assignments({
             <label>
               Instructions
               <textarea name="instructions" />
+            </label>
+            <label>
+              Batch
+              <select name="batch" required>
+                {batches.map((b) => (
+                  <option key={b._id} value={b._id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
             </label>
             <label>
               Deadline
@@ -262,11 +305,23 @@ export default function Assignments({
             </p>
             <label>
               Score
-              <input name="grade" type="number" min="0" max="100" required />
+              <input
+                name="grade"
+                type="number"
+                min="0"
+                max={review.maximumScore || 100}
+                step="1"
+                placeholder={`0 – ${review.maximumScore || 100}`}
+                required
+              />
             </label>
             <label>
               Feedback
-              <textarea name="feedback" required />
+              <textarea
+                name="feedback"
+                placeholder="Enter detailed feedback…"
+                required
+              />
             </label>
             <button className="primary" disabled={saving}>
               <Star size={16} />

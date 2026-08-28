@@ -4,7 +4,7 @@ import { Profile, Toolbar, Modal } from "../components/Shared";
 
 export default function People({ role, me, people, setPeople, batches, assignMentor }) {
   const [profile, setProfile] = useState(null);
-  const [assigning, setAssigning] = useState(null); // student._id being assigned
+  const [assignModal, setAssignModal] = useState(null); // { student }
 
   /* Filter based on role — mentors see only their mentees */
   const list =
@@ -68,39 +68,22 @@ export default function People({ role, me, people, setPeople, batches, assignMen
                   </td>
                   <td>{x.batch}</td>
                   <td>
-                    {x.mentor}
-                    {assignMentor && (role === "mentor" || role === "admin") && x.batchId && (
-                      <>
-                        {assigning === x._id ? (
-                          <select
-                            className="ml-2 rounded border border-emerald-200 bg-white px-1.5 py-0.5 text-xs"
-                            autoFocus
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                assignMentor(x, e.target.value);
-                              }
-                              setAssigning(null);
-                            }}
-                            onBlur={() => setAssigning(null)}
-                          >
-                            <option value="">Cancel</option>
-                            {batchMentors.map((m) => (
-                              <option key={m._id} value={m._id}>
-                                {m.name}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <button
-                            onClick={() => setAssigning(x._id)}
-                            className="ml-1 text-[10px] font-bold text-emerald-600 hover:underline"
-                            title="Assign mentor"
-                          >
-                            ✎
-                          </button>
-                        )}
-                      </>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-600">
+                        {x.mentor || "Unassigned"}
+                      </span>
+                      {assignMentor && (role === "mentor" || role === "admin") && x.batchId && (
+                        <button
+                          onClick={() =>
+                            setAssignModal({ student: x })
+                          }
+                          className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 transition hover:bg-emerald-100"
+                          title="Change mentor"
+                        >
+                          ✎ Change
+                        </button>
+                      )}
+                    </div>
                   </td>
                   <td>{x.attendance}%</td>
                   <td>
@@ -121,6 +104,65 @@ export default function People({ role, me, people, setPeople, batches, assignMen
       )}
       {profile && (
         <Profile x={profile} role={role} close={() => setProfile(null)} />
+      )}
+
+      {/* ── Assign mentor modal ──────────────────────────────────── */}
+      {assignModal && (
+        <Modal
+          title={`Assign mentor to ${assignModal.student.name}`}
+          close={() => setAssignModal(null)}
+        >
+          <p className="mb-4 text-sm text-slate-500">
+            Select a mentor for this student in batch{" "}
+            <b>{assignModal.student.batch}</b>:
+          </p>
+          {batchMentors.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              No mentors available. Ask an admin to create mentor accounts
+              first.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {batchMentors.map((m) => {
+                const isCurrent = assignModal.student.mentorId === m._id;
+                return (
+                  <button
+                    key={m._id}
+                    onClick={() => {
+                      assignMentor(assignModal.student, m._id);
+                      setAssignModal(null);
+                    }}
+                    className={
+                      "flex w-full items-center gap-3 rounded-lg border p-3 text-left transition " +
+                      (isCurrent
+                        ? "border-emerald-400 bg-emerald-50 ring-2 ring-emerald-200"
+                        : "border-slate-200 hover:border-emerald-300 hover:bg-emerald-50")
+                    }
+                  >
+                    <span className="grid size-8 place-items-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">
+                      {(m.name || "M").slice(0, 2)}
+                    </span>
+                    <div className="flex-1">
+                      <b className="block text-sm text-slate-800">
+                        {m.name}
+                        {isCurrent && (
+                          <small className="ml-2 text-[10px] font-bold text-emerald-600">
+                            (current)
+                          </small>
+                        )}
+                      </b>
+                    </div>
+                    {!isCurrent && (
+                      <span className="text-xs font-bold text-emerald-700">
+                        Select →
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </Modal>
       )}
     </section>
   );
