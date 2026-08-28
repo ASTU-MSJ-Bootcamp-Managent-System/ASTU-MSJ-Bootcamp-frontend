@@ -1,29 +1,15 @@
 import { Intro, Status, Table } from "../components/ui";
+
 export default function PeoplePage({
   data,
   update,
   open,
   ask,
-  promoteStudent: promoteStudentApi,
+  promoteStudent,
   setStudentActive,
   removeStudent,
+  removeMentor,
 }) {
-  function promoteStudent(student, index) {
-    ask(
-      `Promote ${student.name} to mentor? They will no longer appear in the student roster.`,
-      async () => {
-        if (promoteStudentApi) return promoteStudentApi(student);
-        update({
-          students: data.students.filter((_, itemIndex) => itemIndex !== index),
-          mentors: [
-            ...data.mentors,
-            { name: student.name, email: student.email },
-          ],
-        });
-      },
-    );
-  }
-
   return (
     <>
       <Intro
@@ -37,7 +23,7 @@ export default function PeoplePage({
         heads={["Student", "Course", "Mentor", "Attendance", "Status", ""]}
       >
         {data.students.map((s, i) => (
-          <tr key={s.email}>
+          <tr key={s._id || s.email}>
             <td className="px-4 py-4">
               <b className="block">{s.name}</b>
               <small className="text-xs text-stone-500">{s.email}</small>
@@ -58,7 +44,22 @@ export default function PeoplePage({
                 Edit
               </button>
               <button
-                onClick={() => promoteStudent(s, i)}
+                onClick={() =>
+                  promoteStudent
+                    ? ask(
+                        `Promote ${s.name} to mentor? They will no longer appear in the student roster.`,
+                        () => promoteStudent(s),
+                      )
+                    : update({
+                        students: data.students.filter(
+                          (_, itemIndex) => itemIndex !== i,
+                        ),
+                        mentors: [
+                          ...data.mentors,
+                          { name: s.name, email: s.email },
+                        ],
+                      })
+                }
                 className="mr-2 rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs font-bold text-sky-800 transition hover:bg-sky-100"
               >
                 Make mentor
@@ -119,7 +120,7 @@ export default function PeoplePage({
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         {data.mentors.map((m, i) => (
           <article
-            key={m.email}
+            key={m._id || m.email}
             className="flex items-center justify-between rounded-xl border border-emerald-100 bg-white p-4"
           >
             <div>
@@ -131,14 +132,16 @@ export default function PeoplePage({
                 ask(
                   "Remove this mentor? Assigned students will become unassigned.",
                   () =>
-                    update({
-                      mentors: data.mentors.filter((_, n) => n !== i),
-                      students: data.students.map((s) =>
-                        s.mentor === m.name
-                          ? { ...s, mentor: "Unassigned" }
-                          : s,
-                      ),
-                    }),
+                    removeMentor
+                      ? removeMentor(m)
+                      : update({
+                          mentors: data.mentors.filter((_, n) => n !== i),
+                          students: data.students.map((s) =>
+                            s.mentor === m.name
+                              ? { ...s, mentor: "Unassigned" }
+                              : s,
+                          ),
+                        }),
                 )
               }
               className="font-bold text-rose-700"

@@ -1,31 +1,57 @@
 import { useState } from "react";
+import { X } from "lucide-react";
 import { Button, Intro, input } from "../components/ui";
-export default function SettingsPage({ data, update }) {
-  let [msg, setMsg] = useState("");
-  function save(e) {
+
+export default function SettingsPage({ data, update, saveProfile, onClose }) {
+  const [msg, setMsg] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function save(e) {
     e.preventDefault();
-    let f = new FormData(e.currentTarget);
-    if (f.get("current") !== data.admin.password)
-      return setMsg("Current password is incorrect.");
-    update({
-      admin: {
-        name: f.get("name"),
-        email: f.get("email").trim().toLowerCase(),
-        password: f.get("next"),
-      },
-    });
-    setMsg("Profile and password updated for this session.");
+    setMsg("");
+    setSaving(true);
+
+    const f = new FormData(e.currentTarget);
+    const name = f.get("name");
+    const email = f.get("email").trim().toLowerCase();
+    const currentPassword = f.get("current");
+    const newPassword = f.get("next");
+
+    try {
+      if (saveProfile) {
+        await saveProfile({ name, email, currentPassword, newPassword });
+        setMsg("Profile and password updated successfully.");
+      } else {
+        if (currentPassword !== data.admin.password)
+          return setMsg("Current password is incorrect.");
+        update({ admin: { name, email, password: newPassword } });
+        setMsg("Profile and password updated for this session.");
+      }
+    } catch (err) {
+      setMsg(err.message || "Failed to update. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
+
   return (
-    <>
+    <section className="relative mx-auto max-w-2xl rounded-xl border border-emerald-100 bg-white p-6 shadow-sm">
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="absolute right-4 top-4 rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
+          title="Close"
+        >
+          <X size={18} />
+        </button>
+      )}
+
       <Intro
         title="Profile & security"
         text="Update the administrator identity and sign-in password."
       />
-      <form
-        onSubmit={save}
-        className="max-w-xl rounded-xl border border-emerald-100 bg-white p-6"
-      >
+
+      <form onSubmit={save} className="mt-4 space-y-4">
         <label className="block text-xs font-bold">
           Display name
           <input
@@ -35,7 +61,7 @@ export default function SettingsPage({ data, update }) {
             required
           />
         </label>
-        <label className="mt-4 block text-xs font-bold">
+        <label className="block text-xs font-bold">
           Administrator email
           <input
             className={input}
@@ -45,12 +71,14 @@ export default function SettingsPage({ data, update }) {
             required
           />
         </label>
-        <hr className="my-6 border-stone-100" />
+
+        <hr className="border-stone-100" />
+
         <label className="block text-xs font-bold">
           Current password
           <input className={input} name="current" type="password" required />
         </label>
-        <label className="mt-4 block text-xs font-bold">
+        <label className="block text-xs font-bold">
           New password
           <input
             className={input}
@@ -60,9 +88,34 @@ export default function SettingsPage({ data, update }) {
             required
           />
         </label>
-        {msg && <p className="mt-4 text-sm text-emerald-700">{msg}</p>}
-        <Button className="mt-5">Save security changes</Button>
+
+        {msg && (
+          <p
+            className={`text-sm ${
+              msg.includes("Failed") || msg.includes("incorrect")
+                ? "text-rose-600"
+                : "text-emerald-700"
+            }`}
+          >
+            {msg}
+          </p>
+        )}
+
+        <div className="flex justify-end gap-2 pt-2">
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-stone-200 px-4 py-2 text-sm text-stone-600 transition hover:bg-stone-50"
+            >
+              Cancel
+            </button>
+          )}
+          <Button disabled={saving}>
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
       </form>
-    </>
+    </section>
   );
 }

@@ -1,5 +1,6 @@
 import { Intro } from "../components/ui";
-export default function CoursesPage({ data, update, open, ask }) {
+
+export default function CoursesPage({ data, update, open, ask, deleteCourse }) {
   return (
     <>
       <Intro
@@ -14,7 +15,7 @@ export default function CoursesPage({ data, update, open, ask }) {
           let count = data.students.filter((s) => s.course === c.name).length;
           return (
             <article
-              key={c.code}
+              key={c._id || c.code}
               className="rounded-xl border border-emerald-100 bg-white p-5"
             >
               <p className="text-[10px] font-bold tracking-widest text-emerald-700">
@@ -28,7 +29,7 @@ export default function CoursesPage({ data, update, open, ask }) {
                 <i
                   className="block h-full bg-emerald-700"
                   style={{
-                    width: `${Math.min(100, (count / c.capacity) * 100)}%`,
+                    width: `${Math.min(100, (count / (c.capacity || 1)) * 100)}%`,
                   }}
                 />
               </div>
@@ -44,9 +45,13 @@ export default function CoursesPage({ data, update, open, ask }) {
                     count
                       ? alert("Move students before deleting this course.")
                       : ask("Delete this course?", () =>
-                          update({
-                            courses: data.courses.filter((_, n) => n !== i),
-                          }),
+                          deleteCourse
+                            ? deleteCourse(c._id)
+                            : update({
+                                courses: data.courses.filter(
+                                  (_, n) => n !== i,
+                                ),
+                              }),
                         )
                   }
                   className="font-bold text-rose-700"

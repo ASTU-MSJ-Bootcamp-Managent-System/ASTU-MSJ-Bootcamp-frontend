@@ -1,6 +1,7 @@
 import { Modal } from "./Modal";
 import { Button, input } from "./ui";
-export default function Editor({ type, index, data, update, close }) {
+
+export default function Editor({ type, index, data, update, close, onSave }) {
   let old =
     index === undefined
       ? null
@@ -11,6 +12,7 @@ export default function Editor({ type, index, data, update, close }) {
           : type === "attendance"
             ? data.attendance[index]
             : null;
+
   let field = (label, name, props = {}) => (
     <label className="block text-xs font-bold">
       {label}
@@ -18,17 +20,40 @@ export default function Editor({ type, index, data, update, close }) {
         className={input}
         name={name}
         defaultValue={
-          old?.[name] ??
-          (name === "capacity" ? 30 : name === "attendance" ? 0 : "")
+          old?.[name] ?? (name === "capacity" ? 30 : "")
         }
         required
         {...props}
       />
     </label>
   );
+
   function save(e) {
     e.preventDefault();
     let v = Object.fromEntries(new FormData(e.currentTarget));
+
+    if (onSave) {
+      if (type === "student") {
+        v.attendance = +v.attendance;
+        const matchedCourse = data.courses.find((c) => c.name === v.course);
+        v._batchId = matchedCourse?._id || null;
+      }
+      if (type === "course") {
+        v.capacity = +v.capacity;
+      }
+      if (type === "attendance") {
+        /* Resolve IDs from selected names */
+        const matchedStudent = data.students.find((s) => s.name === v.student);
+        const matchedCourse = data.courses.find((c) => c.name === v.batch);
+        v.studentId = matchedStudent?._id || old?.studentId || null;
+        v.batchId = matchedCourse?._id || old?.batchId || null;
+        v.status = v.status || "PRESENT";
+      }
+      onSave(type, index, v);
+      return;
+    }
+
+    /* Fallback: local-only update (no API) */
     if (type === "student") {
       v.attendance = +v.attendance;
       update({
@@ -52,15 +77,29 @@ export default function Editor({ type, index, data, update, close }) {
       });
     }
     if (type === "attendance") {
-      ["present", "late", "absent"].forEach((k) => (v[k] = +v[k]));
+      const matchedStudent = data.students.find((s) => s.name === v.student);
+      const matchedCourse = data.courses.find((c) => c.name === v.batch);
       update({
         attendance: old
           ? data.attendance.map((x, i) => (i === index ? v : x))
-          : [v, ...data.attendance],
+          : [
+              {
+                _id: Date.now().toString(),
+                studentId: matchedStudent?._id,
+                studentName: v.student,
+                batchId: matchedCourse?._id,
+                batchName: v.batch,
+                date: v.date,
+                status: v.status,
+                note: v.note || "",
+              },
+              ...data.attendance,
+            ],
       });
     }
     close();
   }
+
   return (
     <Modal title={(old ? "Edit " : "Add ") + type} onClose={close}>
       <form onSubmit={save} className="space-y-4">
@@ -73,11 +112,12 @@ export default function Editor({ type, index, data, update, close }) {
                 Course
                 <select
                   name="course"
-                  defaultValue={old?.course || data.courses[0]?.name}
+                  defaultValue={old?.course || data.courses[0]?.name || ""}
                   className={input}
                 >
+                  <option value="">Unassigned</option>
                   {data.courses.map((c) => (
-                    <option key={c.code}>{c.name}</option>
+                    <option key={c._id || c.code}>{c.name}</option>
                   ))}
                 </select>
               </label>
@@ -85,12 +125,12 @@ export default function Editor({ type, index, data, update, close }) {
                 Mentor
                 <select
                   name="mentor"
-                  defaultValue={old?.mentor || data.mentors[0]?.name}
+                  defaultValue={old?.mentor || data.mentors[0]?.name || ""}
                   className={input}
                 >
                   <option>Unassigned</option>
                   {data.mentors.map((m) => (
-                    <option key={m.email}>{m.name}</option>
+                    <option key={m._id || m.email}>{m.name}</option>
                   ))}
                 </select>
               </label>
@@ -113,30 +153,97 @@ export default function Editor({ type, index, data, update, close }) {
             })}
           </>
         )}
+
         {type === "mentor" && (
           <>
             {field("Full name", "name")}
             {field("Work email", "email", { type: "email" })}
           </>
         )}
+
         {type === "course" && (
           <>
             {field("Course name", "name")}
-            {field("Course code", "code")}
-            {field("Capacity", "capacity", { type: "number", min: 1 })}
-          </>
-        )}
-        {type === "attendance" && (
-          <>
-            {field("Date", "date")}
-            {field("Batch", "batch")}
-            <div className="grid gap-4 sm:grid-cols-3">
-              {field("Present", "present", { type: "number", min: 0 })}
-              {field("Late", "late", { type: "number", min: 0 })}
-              {field("Absent", "absent", { type: "number", min: 0 })}
+            {field("Description", "description")}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {field("Start date", "startDate", { type: "date" })}
+              {field("End date", "endDate", { type: "date" })}
             </div>
           </>
         )}
+
+        {type === "attendance" && (
+          <>
+            {/* Student selector */}
+            <label className="block text-xs font-bold">
+              Student
+              <select
+                name="student"
+                defaultValue={old?.studentName || ""}
+                className={input}
+                required
+              >
+                <option value="">Select student…</option>
+                {data.students.map((s) => (
+                  <option key={s._id} value={s.name}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* Batch selector */}
+            <label className="block text-xs font-bold">
+              Batch
+              <select
+                name="batch"
+                defaultValue={old?.batchName || data.courses[0]?.name || ""}
+                className={input}
+                required
+              >
+                {data.courses.map((c) => (
+                  <option key={c._id || c.code} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* Date */}
+            {field("Date", "date", {
+              type: "date",
+              defaultValue: old?.date || new Date().toISOString().split("T")[0],
+            })}
+
+            {/* Status enum */}
+            <label className="block text-xs font-bold">
+              Status
+              <select
+                name="status"
+                defaultValue={old?.status || "PRESENT"}
+                className={input}
+                required
+              >
+                <option value="PRESENT">Present</option>
+                <option value="LATE">Late</option>
+                <option value="ABSENT">Absent</option>
+                <option value="EXCUSED">Excused</option>
+              </select>
+            </label>
+
+            {/* Note */}
+            <label className="block text-xs font-bold">
+              Note (optional)
+              <input
+                className={input}
+                name="note"
+                defaultValue={old?.note || ""}
+                placeholder="e.g. Participated actively"
+              />
+            </label>
+          </>
+        )}
+
         <div className="flex justify-end gap-2 pt-3">
           <button
             type="button"

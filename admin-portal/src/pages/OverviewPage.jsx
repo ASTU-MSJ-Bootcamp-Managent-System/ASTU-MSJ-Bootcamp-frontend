@@ -1,22 +1,28 @@
 import { Intro, Status } from "../components/ui";
+
 export default function OverviewPage({ data, open, setPage }) {
-  let avg = Math.round(
-      data.students.reduce((n, x) => n + x.attendance, 0) /
-        (data.students.length || 1),
-    ),
-    cards = [
-      [
-        "ACTIVE STUDENTS",
-        data.students.filter((x) => x.status === "Active").length,
-      ],
-      ["MENTORS", data.mentors.length],
-      ["PENDING APPROVALS", data.requests.length],
-      ["AVERAGE ATTENDANCE", avg + "%"],
-    ];
+  let avg =
+    data.students.length > 0
+      ? Math.round(
+          data.students.reduce((n, x) => n + x.attendance, 0) /
+            data.students.length,
+        )
+      : 0;
+
+  let cards = [
+    [
+      "ACTIVE STUDENTS",
+      data.students.filter((x) => x.status === "Active").length,
+    ],
+    ["MENTORS", data.mentors.length],
+    ["PENDING APPROVALS", data.requests.length],
+    ["AVERAGE ATTENDANCE", avg + "%"],
+  ];
+
   return (
     <>
       <Intro
-        title={"Good morning, " + data.admin.name.split(" ")[0] + "."}
+        title={"Good morning, " + (data.admin.name || "Admin").split(" ")[0] + "."}
         text="Programme activity and priority tasks at a glance."
         action={() => setPage("requests")}
       >
@@ -38,9 +44,14 @@ export default function OverviewPage({ data, open, setPage }) {
       <div className="mt-5 grid gap-5 xl:grid-cols-2">
         <section className="rounded-xl border border-emerald-100 bg-white p-5">
           <h3 className="font-bold">Pending approvals</h3>
+          {data.requests.length === 0 && (
+            <p className="mt-3 text-sm text-stone-400">
+              No pending requests.
+            </p>
+          )}
           {data.requests.map((r) => (
             <div
-              key={r.email}
+              key={r._id || r.email}
               className="mt-3 flex items-center gap-3 border-t pt-3"
             >
               <div className="flex-1">
