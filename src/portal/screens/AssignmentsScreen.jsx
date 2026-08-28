@@ -1,101 +1,117 @@
-import React, { useState } from "react";
-import {
-  LayoutDashboard,
-  Users,
-  CalendarCheck,
-  BookOpen,
-  ClipboardList,
-  Megaphone,
-  Bell,
-  ChevronDown,
-  ArrowRight,
-  Plus,
-  LogOut,
-  Menu,
-  X,
-  GraduationCap,
-  ShieldCheck,
-  TrendingUp,
-  FileText,
-  UserMinus,
-  UserCheck,
-  CheckCircle2,
-  Send,
-  Trash2,
-  Star,
-} from "lucide-react";
-import { Profile, Toolbar, Modal } from "../components/Shared";
+import { useState } from "react";
+import { FileText, Send, Star } from "lucide-react";
+import { Toolbar, Modal } from "../components/Shared";
+
 export default function Assignments({
   role,
+  token,
   assignments,
   setAssignments,
+  submissions,
+  setSubmissions,
   people,
+  batches,
+  refresh,
 }) {
-  let [create, setCreate] = useState(false),
-    [submit, setSubmit] = useState(null),
-    [review, setReview] = useState(null);
-  function publish(e) {
+  const [create, setCreate] = useState(false);
+  const [submit, setSubmit] = useState(null);
+  const [review, setReview] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  /* ── Create assignment (mentor/admin) ─────────────────────────────── */
+  async function publish(e) {
     e.preventDefault();
-    let f = new FormData(e.currentTarget);
-    setAssignments([
-      ...assignments,
-      {
-        id: Date.now(),
-        title: f.get("title"),
-        deadline: f.get("deadline"),
-        max: +f.get("max"),
-        submissions: [],
-      },
-    ]);
-    setCreate(false);
+    const f = new FormData(e.currentTarget);
+    setSaving(true);
+    try {
+      const batchId = batches[0]?._id;
+      await fetch(
+        `${import.meta.env.VITE_API_BASE_URL || "https://astu-msj-bootcamp-backend.onrender.com"}/api/assignments`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title: f.get("title"),
+            description: f.get("description") || "",
+            instructions: f.get("instructions") || "",
+            batch: batchId,
+            deadline: new Date(f.get("deadline")).toISOString(),
+            maximumScore: +f.get("max") || 100,
+          }),
+        },
+      );
+      await refresh();
+      setCreate(false);
+    } catch (err) {
+      alert(err.message || "Failed to create assignment.");
+    } finally {
+      setSaving(false);
+    }
   }
-  function send(e) {
+
+  /* ── Submit work (student) ────────────────────────────────────────── */
+  async function send(e) {
     e.preventDefault();
-    let f = new FormData(e.currentTarget);
-    setAssignments(
-      assignments.map((a) =>
-        a.id === submit
-          ? {
-              ...a,
-              submissions: [
-                ...a.submissions,
-                {
-                  studentId: 1,
-                  repo: f.get("repo"),
-                  note: f.get("note"),
-                  grade: null,
-                  feedback: "",
-                },
-              ],
-            }
-          : a,
-      ),
-    );
-    setSubmit(null);
+    const f = new FormData(e.currentTarget);
+    setSaving(true);
+    try {
+      await fetch(
+        `${import.meta.env.VITE_API_BASE_URL || "https://astu-msj-bootcamp-backend.onrender.com"}/api/submissions`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            assignment: submit,
+            githubUrl: f.get("repo"),
+            liveDemoUrl: f.get("demo") || "",
+            notes: f.get("note") || "",
+          }),
+        },
+      );
+      await refresh();
+      setSubmit(null);
+    } catch (err) {
+      alert(err.message || "Failed to submit.");
+    } finally {
+      setSaving(false);
+    }
   }
-  function grade(e) {
+
+  /* ── Grade submission (mentor/admin) ──────────────────────────────── */
+  async function grade(e) {
     e.preventDefault();
-    let f = new FormData(e.currentTarget);
-    setAssignments(
-      assignments.map((a) =>
-        a.id === review.a
-          ? {
-              ...a,
-              submissions: a.submissions.map((s) =>
-                s.studentId === review.s
-                  ? {
-                      ...s,
-                      grade: +f.get("grade"),
-                      feedback: f.get("feedback"),
-                    }
-                  : s,
-              ),
-            }
-          : a,
-      ),
-    );
-    setReview(null);
+    const f = new FormData(e.currentTarget);
+    setSaving(true);
+    try {
+      await fetch(
+        `${import.meta.env.VITE_API_BASE_URL || "https://astu-msj-bootcamp-backend.onrender.com"}/api/submissions/${review.subId}/grade`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            grade: +f.get("grade"),
+            feedback: f.get("feedback"),
+          }),
+        },
+      );
+      await refresh();
+      setReview(null);
+    } catch (err) {
+      alert(err.message || "Failed to grade.");
+    } finally {
+      setSaving(false);
+    }
   }
+
   return (
     <section className="panel work-panel">
       <Toolbar
@@ -103,60 +119,116 @@ export default function Assignments({
         action={role === "student" ? null : "Create assignment"}
         onAction={() => setCreate(true)}
       />
-      {assignments.map((a) => {
-        let mine = a.submissions.find((s) => s.studentId === 1),
-          pending = a.submissions.find((s) => s.grade == null);
-        return (
-          <article className="assignment" key={a.id}>
-            <div className="assign-icon">
-              <FileText />
-            </div>
-            <div>
-              <b>{a.title}</b>
-              <p>
-                Due {a.deadline} · {a.max} points
-              </p>
-              {mine?.grade != null && (
-                <small className="feedback">
-                  Grade {mine.grade}/{a.max} · {mine.feedback}
-                </small>
+      {assignments.length === 0 ? (
+        <p className="empty-state">No assignments yet.</p>
+      ) : (
+        assignments.map((a) => {
+          const mySub = submissions.find(
+            (s) => s.assignmentId === a._id,
+          );
+          const pendingSubs =
+            role !== "student"
+              ? submissions.filter(
+                  (s) => s.assignmentId === a._id && s.grade == null,
+                )
+              : [];
+
+          return (
+            <article className="assignment" key={a._id}>
+              <div className="assign-icon">
+                <FileText />
+              </div>
+              <div className="flex-1">
+                <b>{a.title}</b>
+                {a.description && (
+                  <p className="text-xs text-slate-400">{a.description}</p>
+                )}
+                <p>
+                  Due{" "}
+                  {a.deadline
+                    ? new Date(a.deadline).toLocaleDateString()
+                    : "No deadline"}{" "}
+                  · {a.maximumScore} points
+                </p>
+                {mySub?.grade != null && (
+                  <small className="feedback">
+                    Grade {mySub.grade}/{a.maximumScore} · {mySub.feedback}
+                  </small>
+                )}
+              </div>
+              {role === "student" ? (
+                <span
+                  className={
+                    "status " +
+                    (mySub?.grade != null
+                      ? "green"
+                      : mySub
+                        ? "amber"
+                        : "amber")
+                  }
+                >
+                  {mySub
+                    ? mySub.grade != null
+                      ? "Graded"
+                      : "Submitted"
+                    : "Not submitted"}
+                </span>
+              ) : (
+                <span
+                  className={
+                    "status " +
+                    (pendingSubs.length > 0 ? "amber" : "green")
+                  }
+                >
+                  {pendingSubs.length > 0
+                    ? `${pendingSubs.length} pending`
+                    : "No submissions"}
+                </span>
               )}
-            </div>
-            <span
-              className={"status " + (mine?.grade != null ? "green" : "amber")}
-            >
-              {role === "student"
-                ? mine
-                  ? mine.grade != null
-                    ? "Graded"
-                    : "Submitted"
-                  : "Not submitted"
-                : pending
-                  ? "Needs review"
-                  : "Reviewed"}
-            </span>
-            {role === "student" && !mine && (
-              <button className="outline" onClick={() => setSubmit(a.id)}>
-                Submit work
-              </button>
-            )}
-            {role !== "student" && pending && (
-              <button
-                className="outline"
-                onClick={() => setReview({ a: a.id, s: pending.studentId })}
-              >
-                Review & grade
-              </button>
-            )}
-          </article>
-        );
-      })}
+              {role === "student" && !mySub && (
+                <button
+                  className="outline"
+                  onClick={() => setSubmit(a._id)}
+                >
+                  Submit work
+                </button>
+              )}
+              {role !== "student" && pendingSubs.length > 0 && (
+                <button
+                  className="outline"
+                  onClick={() =>
+                    setReview({
+                      subId: pendingSubs[0]._id,
+                      studentName:
+                        people.find(
+                          (p) => p._id === pendingSubs[0].studentId,
+                        )?.name || "Student",
+                    })
+                  }
+                >
+                  Review & grade
+                </button>
+              )}
+            </article>
+          );
+        })
+      )}
+
+      {/* ── Create modal ─────────────────────────────────────────────── */}
       {create && (
         <Modal title="Create assignment" close={() => setCreate(false)}>
           <form className="stack-form" onSubmit={publish}>
             <label>
               Title
               <input name="title" required />
+            </label>
+            <label>
+              Description
+              <textarea name="description" />
+            </label>
+            <label>
+              Instructions
+              <textarea name="instructions" />
             </label>
             <label>
               Deadline
@@ -166,10 +238,14 @@ export default function Assignments({
               Maximum score
               <input name="max" type="number" defaultValue="100" required />
             </label>
-            <button className="primary">Publish assignment</button>
+            <button className="primary" disabled={saving}>
+              {saving ? "Publishing…" : "Publish assignment"}
+            </button>
           </form>
         </Modal>
       )}
+
+      {/* ── Submit modal ─────────────────────────────────────────────── */}
       {submit && (
         <Modal title="Submit your work" close={() => setSubmit(null)}>
           <form className="stack-form" onSubmit={send}>
@@ -183,21 +259,31 @@ export default function Assignments({
               />
             </label>
             <label>
+              Live demo URL (optional)
+              <input
+                name="demo"
+                type="url"
+                placeholder="https://..."
+              />
+            </label>
+            <label>
               Submission notes
               <textarea name="note" />
             </label>
-            <button className="primary">
+            <button className="primary" disabled={saving}>
               <Send size={16} />
-              Submit assignment
+              {saving ? "Submitting…" : "Submit assignment"}
             </button>
           </form>
         </Modal>
       )}
+
+      {/* ── Grade modal ──────────────────────────────────────────────── */}
       {review && (
         <Modal title="Review submission" close={() => setReview(null)}>
           <form className="stack-form" onSubmit={grade}>
-            <p className="muted-copy">
-              Student: {people.find((p) => p.id === review.s)?.name}
+            <p className="muted-copy text-sm text-slate-500">
+              Student: {review.studentName}
             </p>
             <label>
               Score
@@ -207,9 +293,9 @@ export default function Assignments({
               Feedback
               <textarea name="feedback" required />
             </label>
-            <button className="primary">
+            <button className="primary" disabled={saving}>
               <Star size={16} />
-              Publish grade & feedback
+              {saving ? "Saving…" : "Publish grade & feedback"}
             </button>
           </form>
         </Modal>

@@ -1,124 +1,148 @@
-import React, { useState } from "react";
 import {
-  LayoutDashboard,
-  Users,
   CalendarCheck,
-  BookOpen,
   ClipboardList,
-  Megaphone,
-  Bell,
-  ChevronDown,
-  ArrowRight,
-  Plus,
-  LogOut,
-  Menu,
-  X,
-  GraduationCap,
-  ShieldCheck,
-  TrendingUp,
-  FileText,
-  UserMinus,
-  UserCheck,
-  CheckCircle2,
-  Send,
-  Trash2,
   Star,
+  TrendingUp,
 } from "lucide-react";
-import { Profile, Toolbar, Modal } from "../components/Shared";
+import { Toolbar } from "../components/Shared";
 import Learning from "./LearningScreen";
-export default function Overview({ role, people = [], assignments = [] }) {
-  let me = people[0] || {},
-    mine = assignments
-      .map((a) => (a.submissions || []).find((s) => s.studentId === 1))
-      .filter(Boolean),
-    grades = mine.filter((s) => s.grade != null),
-    avg = grades.length
-      ? Math.round(grades.reduce((x, s) => x + s.grade, 0) / grades.length)
-      : "—",
-    course = people.length
-      ? Math.round(people.reduce((x, p) => x + (p?.progress || 0), 0) / people.length)
-      : 0,
-    pending = assignments.reduce(
-      (x, a) => x + (a.submissions || []).filter((s) => s.grade == null).length,
-      0,
-    );
-  let s =
+
+export default function Overview({
+  role,
+  me,
+  people,
+  assignments,
+  submissions,
+  attendance,
+  progress,
+}) {
+  /* ── Compute stats ────────────────────────────────────────────────── */
+  const mySubs =
+    role === "student"
+      ? submissions.filter(
+          (s) =>
+            assignments.some((a) => a._id === s.assignmentId),
+        )
+      : [];
+  const graded = mySubs.filter((s) => s.grade != null);
+  const avgGrade = graded.length
+    ? Math.round(graded.reduce((x, s) => x + s.grade, 0) / graded.length)
+    : "—";
+
+  const myAtt = attendance.filter(
+    (a) => role === "student" && a.studentId === me?._id,
+  );
+  const attTotal = myAtt.length;
+  const attPresent = myAtt.filter(
+    (a) => a.status === "PRESENT" || a.status === "LATE",
+  ).length;
+  const attPct = attTotal ? Math.round((attPresent / attTotal) * 100) : 0;
+
+  const myProgress = progress.find((p) => p.studentId === me?._id);
+  const progPct = myProgress
+    ? myProgress.status === "COMPLETED"
+      ? 100
+      : myProgress.status === "IN_PROGRESS"
+        ? 50
+        : myProgress.status === "NEEDS_IMPROVEMENT"
+          ? 30
+          : 0
+    : 0;
+
+  const pendingReview =
+    role !== "student"
+      ? submissions.filter((s) => s.grade == null).length
+      : 0;
+  const assignedStudents =
+    role === "mentor"
+      ? people.filter((p) => p.mentorId === me?._id).length
+      : 0;
+  const needsAttention =
+    role === "mentor"
+      ? people.filter(
+          (p) =>
+            p.mentorId === me?._id &&
+            (p.attendance < 80 || p.progress < 60),
+        ).length
+      : 0;
+
+  const stats =
     role === "student"
       ? [
-          [
-            "Attendance",
-            me.attendance != null ? me.attendance + "%" : "—",
-            "Current attendance",
-          ],
-          [
-            "Learning progress",
-            me.progress != null ? me.progress + "%" : "—",
-            "Actual course progress",
-          ],
-          ["Average grade", avg, "Reviewed work"],
+          ["Attendance", attPct + "%", "Your attendance"],
+          ["Progress", progPct + "%", "Course progress"],
+          ["Average grade", avgGrade, "Reviewed work"],
           [
             "Open assignments",
-            assignments.length - mine.length,
+            assignments.length - mySubs.length,
             "Awaiting submission",
           ],
         ]
       : role === "mentor"
         ? [
-            ["Assigned students", people.length, "Frontend Batch 03"],
-            ["Course progress", course + "%", "Cohort average"],
-            ["Pending reviews", pending, "Requires grading"],
+            ["Assigned students", assignedStudents, "Your mentees"],
+            ["Pending reviews", pendingReview, "Requires grading"],
+            ["Needs attention", needsAttention, "Follow up soon"],
             [
-              "Needs attention",
-              people.filter((p) => (p?.progress ?? 0) < 60 || (p?.attendance ?? 0) < 80).length,
-              "Follow up soon",
+              "Announcements",
+              assignments.length,
+              "Active assignments",
             ],
           ]
         : [
             [
               "Active students",
-              people.filter((p) => p?.status === "Active").length,
+              people.filter((p) => p.status === "Active").length,
               "Across all batches",
             ],
-            ["Mentors", "12", "Across 4 tracks"],
+            ["Pending reviews", pendingReview, "Awaiting grading"],
             [
-              "Average attendance",
+              "Avg attendance",
               people.length
                 ? Math.round(
-                    people.reduce((x, p) => x + (p?.attendance || 0), 0) / people.length,
+                    people.reduce((x, p) => x + p.attendance, 0) /
+                      people.length,
                   ) + "%"
                 : "—",
-              "Current cohort",
+              "All students",
             ],
-            ["Open submissions", pending, "Awaiting review"],
+            ["Announcements", 0, ""],
           ];
+
+  const iconList = [CalendarCheck, TrendingUp, Star, ClipboardList];
+  const iconClass = ["att", "prog", "grade", "open"];
+
   return (
     <>
       <section className="stats">
-        {s.map(([a, b, c], i) => (
-          <article className="stat" key={a}>
-            <div className={"stat-icon " + ["att", "prog", "grade", "open"][i]}>
-              {
-                [
-                  <CalendarCheck />,
-                  <TrendingUp />,
-                  <Star />,
-                  <ClipboardList />,
-                ][i]
-              }
+        {stats.map(([label, value, sub], i) => (
+          <article className="stat" key={label}>
+            <div className={"stat-icon " + iconClass[i]}>
+              {(() => {
+                const Ico = iconList[i];
+                return <Ico />;
+              })()}
             </div>
             <div>
-              <p>{a}</p>
-              <h2>{b}</h2>
-              <small>{c}</small>
+              <p>{label}</p>
+              <h2>{value}</h2>
+              <small>{sub}</small>
             </div>
           </article>
         ))}
       </section>
-      <section className="panel work-panel">
+
+      <section className="panel work-panel mt-6">
         <Toolbar
-          title={role === "mentor" ? "Course progress" : "Learning progress"}
+          title={
+            role === "student"
+              ? "My learning"
+              : role === "mentor"
+                ? "Mentee progress"
+                : "Student progress"
+          }
         />
-        <Learning people={people} />
+        <Learning people={people} progress={progress} role={role} me={me} />
       </section>
     </>
   );

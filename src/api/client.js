@@ -469,3 +469,16 @@ export function updateUserProfile(token, body) {
   clearCache("/api/users");
   return jsonRequest("/api/users/profile", token, "PATCH", body);
 }
+
+/* ── Submissions (student's own) ──────────────────────────────────── */
+
+export function getMySubmissions(token) {
+  return protectedRequest("/api/submissions/my", token, { useCache: true });
+}
+
+/* ── Progress (delete) ────────────────────────────────────────────── */
+
+export function deleteProgress(token, id) {
+  clearCache("/api/progress");
+  return protectedRequest(`/api/progress/${id}`, token, { method: "DELETE" });
+}
