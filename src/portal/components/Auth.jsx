@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, KeyRound, Eye, EyeOff } from "lucide-react";
 import myLordImg from "../data/my-lord.webp";
 import logoImg from "../data/logo.jpg";
 
@@ -41,16 +41,31 @@ function Shell({ children }) {
 const validPassword = (password) =>
   password.length >= 8 && /[A-Z]/.test(password) && /[0-9]/.test(password);
 function Field({ label, type = "text", value, onChange }) {
+  const [showPw, setShowPw] = useState(false);
+  const isPassword = type === "password";
   return (
     <label className="block text-sm font-semibold text-slate-700">
       {label}
-      <input
-        className={field}
-        type={type}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        required
-      />
+      <div className="relative">
+        <input
+          className={field + (isPassword ? " pr-10" : "")}
+          type={isPassword ? (showPw ? "text" : "password") : type}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          required
+        />
+        {isPassword && (
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={() => setShowPw((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            aria-label={showPw ? "Hide password" : "Show password"}
+          >
+            {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        )}
+      </div>
     </label>
   );
 }
@@ -102,6 +117,108 @@ export function ForgotPortal({ back, requestReset }) {
         {error && <p className="text-sm text-rose-700">{error}</p>}
         <button disabled={submitting} className={action}>
           {submitting ? "Sending…" : "Send reset link"} <ArrowRight size={18} />
+        </button>
+      </form>
+    </Shell>
+  );
+}
+
+export function ResetPasswordConfirm({ token, onSuccess, back }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+
+  async function submit(event) {
+    event.preventDefault();
+    if (!validPassword(password))
+      return setError(
+        "Use at least 8 characters, including an uppercase letter and a number.",
+      );
+    if (password !== confirm)
+      return setError("Passwords do not match.");
+    setSubmitting(true);
+    setError("");
+    try {
+      await onSuccess(token, password);
+      setDone(true);
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (!token)
+    return (
+      <Shell>
+        <p className="text-sm text-rose-700">Invalid or missing reset link.</p>
+        <button className="mt-4 text-sm font-semibold text-emerald-700" onClick={back}>
+          ← Back to sign in
+        </button>
+      </Shell>
+    );
+
+  if (done)
+    return (
+      <Shell>
+        <div className="text-center">
+          <div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-emerald-100">
+            <KeyRound size={28} className="text-emerald-700" />
+          </div>
+          <p className="text-xs font-semibold tracking-widest text-emerald-700">
+            PASSWORD RESET
+          </p>
+          <h2 className="mt-3 font-serif text-4xl font-semibold">
+            All set!
+          </h2>
+          <p className="mt-3 text-slate-500">
+            Your password has been updated. You can now sign in.
+          </p>
+          <button
+            onClick={back}
+            className="mt-7 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-800"
+          >
+            Sign in <ArrowRight size={18} />
+          </button>
+        </div>
+      </Shell>
+    );
+
+  return (
+    <Shell>
+      <button
+        className="mb-8 text-sm font-semibold text-emerald-700"
+        onClick={back}
+      >
+        ← Back to sign in
+      </button>
+      <p className="text-xs font-semibold tracking-widest text-emerald-700">
+        NEW PASSWORD
+      </p>
+      <h2 className="mt-3 font-serif text-4xl font-semibold">
+        Set a new password
+      </h2>
+      <p className="mt-3 text-slate-500">
+        Enter your new password below. This link expires in 10 minutes.
+      </p>
+      <form className="mt-7 space-y-5" onSubmit={submit}>
+        <Field
+          label="New password"
+          type="password"
+          value={password}
+          onChange={setPassword}
+        />
+        <Field
+          label="Confirm password"
+          type="password"
+          value={confirm}
+          onChange={setConfirm}
+        />
+        {error && <p className="text-sm text-rose-700">{error}</p>}
+        <button disabled={submitting} className={action}>
+          {submitting ? "Resetting…" : "Reset password"} <ArrowRight size={18} />
         </button>
       </form>
     </Shell>

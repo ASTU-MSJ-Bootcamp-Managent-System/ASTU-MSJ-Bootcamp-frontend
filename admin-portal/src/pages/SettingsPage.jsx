@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X, Eye, EyeOff } from "lucide-react";
 import { Button, Intro, input } from "../components/ui";
 
 export default function SettingsPage({ data, update, saveProfile, onClose }) {
@@ -76,17 +76,11 @@ export default function SettingsPage({ data, update, saveProfile, onClose }) {
 
         <label className="block text-xs font-bold">
           Current password
-          <input className={input} name="current" type="password" required />
+          <PasswordField inputClass={input} name="current" required />
         </label>
         <label className="block text-xs font-bold">
           New password
-          <input
-            className={input}
-            name="next"
-            type="password"
-            minLength="8"
-            required
-          />
+          <PasswordField inputClass={input} name="next" minLength="8" required />
         </label>
 
         {msg && (
@@ -117,5 +111,27 @@ export default function SettingsPage({ data, update, saveProfile, onClose }) {
         </div>
       </form>
     </section>
+  );
+}
+
+function PasswordField({ inputClass, ...props }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        className={inputClass}
+        type={visible ? "text" : "password"}
+        {...props}
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        onClick={() => setVisible((v) => !v)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+        aria-label={visible ? "Hide password" : "Show password"}
+      >
+        {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+      </button>
+    </div>
   );
 }

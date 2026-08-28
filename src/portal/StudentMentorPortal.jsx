@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import "../styles.css";
 import Dashboard from "./components/Dashboard";
-import { ForgotPortal, Login } from "./components/Auth";
+import { ForgotPortal, Login, ResetPasswordConfirm } from "./components/Auth";
 import {
   loginUser,
   logoutUser,
   registerStudent,
   requestPasswordReset,
+  resetPasswordConfirm as apiResetPasswordConfirm,
   getDashboard,
   getUsers,
   getBatches,
@@ -61,9 +62,17 @@ const extractId = (v) => (v && typeof v === "object" ? v._id || v.id : v) || nul
 const extractName = (v, fb) => (v && typeof v === "object" ? v.name || fb : fb);
 
 export default function StudentMentorPortal() {
-  const [screen, setScreen] = useState(() =>
-    sessionStorage.getItem("msj-token") ? "app" : "login",
-  );
+  /* Detect reset token from URL: /reset-password?token=xxx */
+  const [resetToken] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('token') || '';
+  });
+
+  const [screen, setScreen] = useState(() => {
+    if (sessionStorage.getItem('msj-token')) return 'app';
+    if (new URLSearchParams(window.location.search).get('token')) return 'reset';
+    return 'login';
+  });
   const [role, setRole] = useState(
     () => sessionStorage.getItem("msj-role") || "student",
   );
@@ -616,6 +625,31 @@ export default function StudentMentorPortal() {
   }
 
   /* ── Auth screens ───────────────────────────────────────────────── */
+  const goLogin = () => {
+    // Clear the reset token from URL when going back to login
+    window.history.replaceState({}, '', window.location.pathname);
+    setScreen('login');
+  };
+
+  if (screen === 'forgot') {
+    return (
+      <ForgotPortal
+        back={goLogin}
+        requestReset={requestPasswordReset}
+      />
+    );
+  }
+
+  if (screen === 'reset') {
+    return (
+      <ResetPasswordConfirm
+        token={resetToken}
+        back={goLogin}
+        onSuccess={apiResetPasswordConfirm}
+      />
+    );
+  }
+
   if (screen !== "app") {
     return (
       <Login
