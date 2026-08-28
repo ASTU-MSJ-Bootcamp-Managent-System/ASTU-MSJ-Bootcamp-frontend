@@ -507,17 +507,14 @@ export default function StudentMentorPortal() {
   async function handleAssignMentor(student, mentorId) {
     try {
       if (!student.batchId) throw new Error("Student is not enrolled in a batch.");
-      /* Auto-attach mentor to batch if not already there */
-      const batch = batches.find((b) => b._id === student.batchId);
-      const mentorIds = (batch?.mentors || []).map((m) => m._id || m);
-      if (!mentorIds.includes(mentorId)) {
-        try {
-          await attachMentor(token, student.batchId, mentorId);
-        } catch (attachErr) {
-          /* Ignore 409 (already attached) — continue with assignment */
-          if (!attachErr.message?.includes('already attached')) {
-            throw attachErr;
-          }
+      /* Always ensure mentor is attached to the batch before assigning.
+         The backend requires this. We call attachMentor unconditionally and
+         ignore 409 ("already attached") so the assignment can proceed. */
+      try {
+        await attachMentor(token, student.batchId, mentorId);
+      } catch (attachErr) {
+        if (!attachErr.message?.includes('already attached')) {
+          throw attachErr;
         }
       }
       await assignMentor(token, student.batchId, student._id, mentorId);

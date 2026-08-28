@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Edit3, Check, X } from "lucide-react";
 import { Toolbar } from "../components/Shared";
 import {
@@ -108,26 +108,13 @@ export default function Attendance({
 
   /* ── Mentor / Admin: mark attendance ────────────────────────────── */
 
-  /*
-   * Find students assigned to the current mentor.
-   * Match by explicit mentorId, or by batch-level assignment.
-   */
-  const myStudents = people.filter(
-    (p) =>
-      (p.mentorId && p.mentorId === me?._id) ||
-      (p.role === "STUDENT" || p.role === "student"),
-  );
-
-  /* For mentors, further narrow to only their mentees */
+  /* Students assigned to this mentor */
   const mentorStudents =
     role === "mentor"
-      ? people.filter((p) => p.mentorId === me?._id)
-      : myStudents;
+      ? people.filter((p) => (p.role === "STUDENT" || p.role === "student") && p.mentorId && p.mentorId === me?._id)
+      : people.filter((p) => p.role === "STUDENT" || p.role === "student");
 
-  /*
-   * Group students by batch so the mentor can pick which batch
-   * session to mark attendance for.
-   */
+  /* Group students by batch */
   const batchMap = {};
   for (const s of mentorStudents) {
     const bid = s.batchId || "__unassigned";
@@ -142,12 +129,13 @@ export default function Attendance({
   }
   const batchGroups = Object.values(batchMap);
 
-  const [selectedBatch, setSelectedBatch] = useState(
-    () => batchGroups[0]?.batchId || null,
-  );
+  /* Derive selectedBatch from state — always pick first valid batch */
+  const [selectedBatchKey, setSelectedBatchKey] = useState(null);
+  const validBatchId = batchGroups.find((g) => g.batchId !== "__unassigned")?.batchId || null;
+  const effectiveSelectedBatch = selectedBatchKey || validBatchId || null;
 
   const activeStudents =
-    batchGroups.find((g) => g.batchId === selectedBatch)?.students || [];
+    batchGroups.find((g) => g.batchId === effectiveSelectedBatch)?.students || [];
 
   function handleChange(studentId, status) {
     setRecords((prev) => ({ ...prev, [studentId]: status }));
@@ -163,21 +151,44 @@ export default function Attendance({
       return;
     }
     setSaving(true);
+    let saved = 0;
+    let failed = 0;
     try {
       for (const [studentId, status] of toSave) {
+        /* Skip invalid IDs */
+        if (!studentId || studentId === "undefined" || studentId === "null" || studentId === "__unassigned") {
+          failed++;
+          continue;
+        }
         const student = mentorStudents.find((s) => s._id === studentId);
-        const batchId = student?.batchId || selectedBatch;
-        await apiCreateAttendance(token, {
-          student: studentId,
-          batch: batchId,
-          date: today,
-          status,
-          note: "",
-        });
+        /* Use the student's actual batchId from the people list */
+        const batchId = student?.batchId;
+        if (!batchId) {
+          alert(`Cannot save attendance for ${student?.name || "unknown"} — student has no batch assigned.`);
+          failed++;
+          continue;
+        }
+        try {
+          await apiCreateAttendance(token, {
+            student: studentId,
+            batch: batchId,
+            date: today,
+            status,
+            note: "",
+          });
+          saved++;
+        } catch (err) {
+          console.error("Failed to save attendance for", studentId, err);
+          failed++;
+        }
       }
       setRecords({});
       await refresh();
-      alert("Attendance saved.");
+      if (failed > 0) {
+        alert(`Saved ${saved} record(s). ${failed} failed — check console for details.`);
+      } else {
+        alert("Attendance saved.");
+      }
     } catch (err) {
       alert(err.message || "Failed to save attendance.");
     } finally {
@@ -213,7 +224,9 @@ export default function Attendance({
 
   /* Get existing attendance for today's date */
   const today = new Date().toISOString().split("T")[0];
-  const todayRecords = attendance.filter((a) => a.date === today && activeStudents.some((s) => s._id === a.studentId));
+  const todayRecords = attendance.filter(
+    (a) => a.date === today && activeStudents.some((s) => s._id === a.studentId),
+  );
 
   return (
     <section className="panel work-panel">
@@ -235,10 +248,10 @@ export default function Attendance({
               {batchGroups.map((g) => (
                 <button
                   key={g.batchId}
-                  onClick={() => setSelectedBatch(g.batchId)}
+                  onClick={() => setSelectedBatchKey(g.batchId)}
                   className={
                     "rounded-full px-3 py-1.5 text-xs font-semibold transition " +
-                    (selectedBatch === g.batchId
+                    (effectiveSelectedBatch === g.batchId
                       ? "bg-emerald-700 text-white"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200")
                   }
@@ -259,91 +272,97 @@ export default function Attendance({
             })}
           </p>
 
-          {activeStudents.map((p) => {
-            const existingRecord = todayRecords.find((r) => r.studentId === p._id);
-            const isEditing = editingId === existingRecord?._id;
+          {activeStudents.length === 0 ? (
+            <p className="empty-state">
+              No students found for the selected batch.
+            </p>
+          ) : (
+            activeStudents.map((p) => {
+              const existingRecord = todayRecords.find((r) => r.studentId === p._id);
+              const isEditing = editingId === existingRecord?._id;
 
-            return (
-              <div className="att-row" key={p._id}>
-                <div>
-                  <b>{p.name}</b>
-                  <small className="ml-2 text-xs text-slate-400">
-                    {p.email}
-                  </small>
-                  {p.batch && (
-                    <small className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
-                      {p.batch}
+              return (
+                <div className="att-row" key={p._id}>
+                  <div>
+                    <b>{p.name}</b>
+                    <small className="ml-2 text-xs text-slate-400">
+                      {p.email}
                     </small>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {isEditing ? (
-                    <>
-                      <select
-                        value={editStatus}
-                        onChange={(e) => setEditStatus(e.target.value)}
-                        className="rounded border border-slate-300 px-2 py-1 text-xs"
-                      >
-                        <option value="PRESENT">Present</option>
-                        <option value="LATE">Late</option>
-                        <option value="ABSENT">Absent</option>
-                        <option value="EXCUSED">Excused</option>
-                      </select>
-                      <input
-                        type="text"
-                        value={editNote}
-                        onChange={(e) => setEditNote(e.target.value)}
-                        placeholder="Note (optional)"
-                        className="rounded border border-slate-300 px-2 py-1 text-xs"
-                      />
-                      <button
-                        onClick={() => saveEdit(existingRecord)}
-                        className="rounded p-1 text-green-600 hover:bg-green-50"
-                        title="Save"
-                      >
-                        <Check size={16} />
-                      </button>
-                      <button
-                        onClick={cancelEdit}
-                        className="rounded p-1 text-slate-400 hover:bg-slate-100"
-                        title="Cancel"
-                      >
-                        <X size={16} />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      {existingRecord ? (
-                        <>
-                          <span className={`status ${existingRecord.status === "PRESENT" ? "green" : existingRecord.status === "LATE" ? "amber" : "amber"}`}>
-                            {statusLabel[existingRecord.status] || existingRecord.status}
-                          </span>
-                          <button
-                            onClick={() => startEdit(existingRecord)}
-                            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
-                            title="Edit attendance"
-                          >
-                            <Edit3 size={14} />
-                          </button>
-                        </>
-                      ) : (
+                    {p.batch && (
+                      <small className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">
+                        {p.batch}
+                      </small>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isEditing ? (
+                      <>
                         <select
-                          value={records[p._id] || "—"}
-                          onChange={(e) => handleChange(p._id, e.target.value)}
+                          value={editStatus}
+                          onChange={(e) => setEditStatus(e.target.value)}
+                          className="rounded border border-slate-300 px-2 py-1 text-xs"
                         >
-                          <option value="—">—</option>
                           <option value="PRESENT">Present</option>
                           <option value="LATE">Late</option>
                           <option value="ABSENT">Absent</option>
                           <option value="EXCUSED">Excused</option>
                         </select>
-                      )}
-                    </>
-                  )}
+                        <input
+                          type="text"
+                          value={editNote}
+                          onChange={(e) => setEditNote(e.target.value)}
+                          placeholder="Note (optional)"
+                          className="rounded border border-slate-300 px-2 py-1 text-xs"
+                        />
+                        <button
+                          onClick={() => saveEdit(existingRecord)}
+                          className="rounded p-1 text-green-600 hover:bg-green-50"
+                          title="Save"
+                        >
+                          <Check size={16} />
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          className="rounded p-1 text-slate-400 hover:bg-slate-100"
+                          title="Cancel"
+                        >
+                          <X size={16} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {existingRecord ? (
+                          <>
+                            <span className={`status ${existingRecord.status === "PRESENT" ? "green" : existingRecord.status === "LATE" ? "amber" : "amber"}`}>
+                              {statusLabel[existingRecord.status] || existingRecord.status}
+                            </span>
+                            <button
+                              onClick={() => startEdit(existingRecord)}
+                              className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
+                              title="Edit attendance"
+                            >
+                              <Edit3 size={14} />
+                            </button>
+                          </>
+                        ) : (
+                          <select
+                            value={records[p._id] || "—"}
+                            onChange={(e) => handleChange(p._id, e.target.value)}
+                          >
+                            <option value="—">—</option>
+                            <option value="PRESENT">Present</option>
+                            <option value="LATE">Late</option>
+                            <option value="ABSENT">Absent</option>
+                            <option value="EXCUSED">Excused</option>
+                          </select>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </>
       )}
     </section>

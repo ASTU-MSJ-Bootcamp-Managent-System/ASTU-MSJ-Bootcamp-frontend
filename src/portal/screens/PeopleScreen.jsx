@@ -344,9 +344,15 @@ export default function People({
                       key={m._id}
                       onClick={async () => {
                         try {
-                          /* Auto-attach mentor to batch if not already there */
-                          if (!isInBatch && assignModal.student.batchId) {
-                            await attachMentor(assignModal.student.batchId, m._id);
+                          /* Always ensure mentor is attached to the batch */
+                          if (assignModal.student.batchId) {
+                            try {
+                              await attachMentor(assignModal.student.batchId, m._id);
+                            } catch (attachErr) {
+                              if (!attachErr.message?.includes('already attached')) {
+                                throw attachErr;
+                              }
+                            }
                           }
                           await assignMentor(assignModal.student, m._id);
                           setAssignModal(null);
