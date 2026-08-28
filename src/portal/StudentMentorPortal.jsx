@@ -323,12 +323,14 @@ export default function StudentMentorPortal() {
         const batch = studentBatchMap[u._id];
         const batchMentors = batch?.mentors || [];
 
-        const assignedMentorId = studentToMentorMap[u._id] || null;
+        /* Use the DB's assignedMentor field as the source of truth.
+           Fall back to studentToMentorMap (from batch/roster data) only if needed. */
+        const rawMentorId = u.assignedMentor || studentToMentorMap[u._id] || null;
+        const assignedMentorId = rawMentorId ? String(rawMentorId) : null;
         const assignedMentorObj = assignedMentorId ? userById[assignedMentorId] : null;
         const assignedMentorName =
           assignedMentorObj?.name ||
-          extractName(batchMentors.find((m) => extractId(m) === assignedMentorId), null) ||
-          extractName(batchMentors[0], "Unassigned") ||
+          extractName(batchMentors.find((m) => String(extractId(m)) === assignedMentorId), null) ||
           "Unassigned";
 
         const perS = attRecords.filter((a) => a.studentId === u._id);
@@ -353,8 +355,21 @@ export default function StudentMentorPortal() {
         };
       });
 
-      console.log("[Portal] enriched people:", enriched.length, "total");
-      setPeople(enriched);
+      /* For mentors, only show their assigned students (students only, no other mentors) */
+      const myId = profile?._id;
+      const isMentor = role === "mentor" && myId;
+      const enrichedStudents = enriched.filter((p) => p.role === "STUDENT" || p.role === "student");
+      const filteredPeople = isMentor
+        ? enrichedStudents.filter((p) => p.mentorId === myId)
+        : enrichedStudents;
+
+      /* Build a Set of assigned student IDs for filtering submissions & progress */
+      const myStudentIds = isMentor
+        ? new Set(filteredPeople.map((p) => p._id))
+        : null;
+
+      console.log("[Portal] enriched people:", enriched.length, "total, filtered:", filteredPeople.length);
+      setPeople(filteredPeople);
 
       /* ── 7. Assignments ────────────────────────────────────────── */
       let assignList = dash.assignments || [];
@@ -370,8 +385,10 @@ export default function StudentMentorPortal() {
         }
       }
 
-      setAssignments(
-        assignList.map((a) => ({
+      const myBatchIds = isMentor
+        ? new Set(batchList.map((b) => b._id))
+        : null;
+      const mappedAssignments = assignList.map((a) => ({
           _id: a._id,
           title: a.title,
           description: a.description || "",
@@ -380,7 +397,10 @@ export default function StudentMentorPortal() {
           maximumScore: a.maximumScore || 100,
           batch: a.batch?._id || a.batch || null,
           batchName: a.batch?.name || "",
-        })),
+        }));
+      /* For mentors, only show assignments from their batches */
+      setAssignments(
+        myBatchIds ? mappedAssignments.filter((a) => myBatchIds.has(a.batch)) : mappedAssignments,
       );
 
       /* ── 8. Submissions ────────────────────────────────────────── */
@@ -416,8 +436,7 @@ export default function StudentMentorPortal() {
             }
           }
         }
-        setSubmissions(
-          subList.map((s) => ({
+        const mappedSubs = subList.map((s) => ({
             _id: s._id,
             assignmentId: s.assignment?._id || s.assignment,
             studentId: s.student?._id || s.student,
@@ -427,7 +446,10 @@ export default function StudentMentorPortal() {
             grade: s.score ?? s.grade ?? null,
             feedback: s.feedback || "",
             status: s.status || "SUBMITTED",
-          })),
+          }));
+        /* For mentors, only show submissions from assigned students */
+        setSubmissions(
+          myStudentIds ? mappedSubs.filter((s) => myStudentIds.has(s.studentId)) : mappedSubs,
         );
       }
 
@@ -462,8 +484,7 @@ export default function StudentMentorPortal() {
           }
         }
       }
-      setProgress(
-        progList.map((p) => ({
+      const mappedProgress = progList.map((p) => ({
           _id: p._id,
           studentId: p.student?._id || p.student,
           studentName: p.student?.name || "Unknown",
@@ -472,7 +493,10 @@ export default function StudentMentorPortal() {
           topic: p.topic,
           status: p.status || "NOT_STARTED",
           notes: p.notes || "",
-        })),
+        }));
+      /* For mentors, only show progress from assigned students */
+      setProgress(
+        myStudentIds ? mappedProgress.filter((p) => myStudentIds.has(p.studentId)) : mappedProgress,
       );
     } catch (err) {
       console.error("Portal data fetch failed:", err);

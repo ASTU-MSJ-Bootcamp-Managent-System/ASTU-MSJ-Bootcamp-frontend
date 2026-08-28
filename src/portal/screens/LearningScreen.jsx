@@ -43,28 +43,56 @@ const topicOptions = [
 
 const statusOptions = ["NOT_STARTED", "IN_PROGRESS", "COMPLETED", "NEEDS_IMPROVEMENT"];
 
+function isValidMongoId(id) {
+  return typeof id === "string" && /^[0-9a-fA-F]{24}$/.test(id);
+}
+
 export default function Learning({ people = [], progress = [], role, me, token, batches, refresh }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState("");
 
   const isMentor = role === "mentor" || role === "admin";
+
+  /* Only students with valid DB IDs */
+  const studentOptions = people.filter(
+    (p) => (p.role === "STUDENT" || p.role === "student") && isValidMongoId(p._id),
+  );
+
+  /* Auto-resolve batch from the selected student */
+  const selectedStudent = studentOptions.find((s) => s._id === selectedStudentId);
+  const resolvedBatchId = selectedStudent?.batchId || null;
+  const resolvedBatchName = selectedStudent?.batch || "";
 
   /* ── Create progress record ─────────────────────────────────────── */
   async function handleCreate(e) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
+    const studentId = selectedStudentId;
+    const batchId = resolvedBatchId;
+
+    if (!isValidMongoId(studentId)) {
+      alert("Please select a valid student.");
+      return;
+    }
+    if (!isValidMongoId(batchId)) {
+      alert("The selected student has no batch assigned. Please enroll them in a batch first.");
+      return;
+    }
+
     setSaving(true);
     try {
       await apiCreateProgress(token, {
-        student: f.get("student"),
-        batch: f.get("batch"),
+        student: studentId,
+        batch: batchId,
         topic: f.get("topic"),
         status: f.get("status"),
         notes: f.get("notes") || "",
       });
       await refresh();
       setCreateOpen(false);
+      setSelectedStudentId("");
     } catch (err) {
       alert(err.message || "Failed to create progress record.");
     } finally {
@@ -136,18 +164,13 @@ export default function Learning({ people = [], progress = [], role, me, token, 
           batchName: p.batchName,
         }));
 
-  /* Students for the create modal */
-  const studentOptions = people.filter(
-    (p) => p.role === "STUDENT" || p.role === "student",
-  );
-
   if (list.length === 0) {
     return (
       <section className="panel work-panel">
         <Toolbar
           title={role === "student" ? "My learning" : "Progress tracking"}
           action={isMentor ? "Add progress record" : undefined}
-          onAction={() => setCreateOpen(true)}
+          onAction={() => { setCreateOpen(true); setSelectedStudentId(""); }}
         />
         <p className="empty-state">
           {role === "student"
@@ -160,26 +183,30 @@ export default function Learning({ people = [], progress = [], role, me, token, 
             <form className="stack-form" onSubmit={handleCreate}>
               <label>
                 Student
-                <select name="student" required>
+                <select
+                  name="student"
+                  required
+                  value={selectedStudentId}
+                  onChange={(e) => setSelectedStudentId(e.target.value)}
+                >
                   <option value="">Select student…</option>
                   {studentOptions.map((s) => (
                     <option key={s._id} value={s._id}>
-                      {s.name} ({s.email})
+                      {s.name} ({s.email}){s.batch ? ` — ${s.batch}` : ""}
                     </option>
                   ))}
                 </select>
               </label>
-              <label>
-                Batch
-                <select name="batch" required>
-                  <option value="">Select batch…</option>
-                  {(batches || []).map((b) => (
-                    <option key={b._id} value={b._id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {selectedStudentId && resolvedBatchId && (
+                <p className="text-xs text-slate-400 -mt-2 mb-2">
+                  Batch: <b>{resolvedBatchName}</b> (auto-assigned)
+                </p>
+              )}
+              {selectedStudentId && !resolvedBatchId && (
+                <p className="text-xs text-rose-500 -mt-2 mb-2">
+                  ⚠ This student has no batch. Enroll them first.
+                </p>
+              )}
               <label>
                 Topic
                 <select name="topic" required>
@@ -204,7 +231,7 @@ export default function Learning({ people = [], progress = [], role, me, token, 
                 Notes
                 <textarea name="notes" placeholder="Optional notes…" />
               </label>
-              <button className="primary" disabled={saving}>
+              <button className="primary" disabled={saving || !selectedStudentId || !resolvedBatchId}>
                 {saving ? "Creating…" : "Create record"}
               </button>
             </form>
@@ -223,7 +250,7 @@ export default function Learning({ people = [], progress = [], role, me, token, 
         <Toolbar
           title="Progress tracking"
           action="Add progress record"
-          onAction={() => setCreateOpen(true)}
+          onAction={() => { setCreateOpen(true); setSelectedStudentId(""); }}
         />
       )}
       <div className="learning-list">
@@ -277,26 +304,30 @@ export default function Learning({ people = [], progress = [], role, me, token, 
           <form className="stack-form" onSubmit={handleCreate}>
             <label>
               Student
-              <select name="student" required>
+              <select
+                name="student"
+                required
+                value={selectedStudentId}
+                onChange={(e) => setSelectedStudentId(e.target.value)}
+              >
                 <option value="">Select student…</option>
                 {studentOptions.map((s) => (
                   <option key={s._id} value={s._id}>
-                    {s.name} ({s.email})
+                    {s.name} ({s.email}){s.batch ? ` — ${s.batch}` : ""}
                   </option>
                 ))}
               </select>
             </label>
-            <label>
-              Batch
-              <select name="batch" required>
-                <option value="">Select batch…</option>
-                {(batches || []).map((b) => (
-                  <option key={b._id} value={b._id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {selectedStudentId && resolvedBatchId && (
+              <p className="text-xs text-slate-400 -mt-2 mb-2">
+                Batch: <b>{resolvedBatchName}</b> (auto-assigned)
+              </p>
+            )}
+            {selectedStudentId && !resolvedBatchId && (
+              <p className="text-xs text-rose-500 -mt-2 mb-2">
+                ⚠ This student has no batch. Enroll them first.
+              </p>
+            )}
             <label>
               Topic
               <select name="topic" required>
@@ -321,7 +352,7 @@ export default function Learning({ people = [], progress = [], role, me, token, 
               Notes
               <textarea name="notes" placeholder="Optional notes…" />
             </label>
-            <button className="primary" disabled={saving}>
+            <button className="primary" disabled={saving || !selectedStudentId || !resolvedBatchId}>
               {saving ? "Creating…" : "Create record"}
             </button>
           </form>
