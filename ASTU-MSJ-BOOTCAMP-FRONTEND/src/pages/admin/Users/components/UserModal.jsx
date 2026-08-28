@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 
-export default function UserModal({ isOpen, onClose, onSubmit, user = null }) {
+export default function UserModal({ isOpen, onClose, onSubmit, user = null, availableBatches = [] }) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     role: 'Student',
+    batch: '',
     password: '',
   });
 
@@ -14,6 +15,7 @@ export default function UserModal({ isOpen, onClose, onSubmit, user = null }) {
         name: user.name || '',
         email: user.email || '',
         role: user.role || 'Student',
+        batch: user.batch || '',
         password: '',
       });
     } else {
@@ -21,10 +23,11 @@ export default function UserModal({ isOpen, onClose, onSubmit, user = null }) {
         name: '',
         email: '',
         role: 'Student',
+        batch: availableBatches[0]?.name || '',
         password: '',
       });
     }
-  }, [user, isOpen]);
+  }, [user, isOpen, availableBatches]);
 
   if (!isOpen) return null;
 
@@ -89,20 +92,41 @@ export default function UserModal({ isOpen, onClose, onSubmit, user = null }) {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
-              Role
-            </label>
-            <select
-              name="role"
-              value={formData.role}
-              onChange={handleChange}
-              className="w-full px-3.5 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition font-medium text-slate-700"
-            >
-              <option value="Student">Student</option>
-              <option value="Mentor">Mentor</option>
-              <option value="Admin">Admin</option>
-            </select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
+                Role
+              </label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className="w-full px-3.5 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition font-medium text-slate-700"
+              >
+                <option value="Student">Student</option>
+                <option value="Mentor">Mentor</option>
+                <option value="Admin">Admin</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">
+                Assign Batch
+              </label>
+              <select
+                name="batch"
+                value={formData.batch}
+                onChange={handleChange}
+                className="w-full px-3.5 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition font-medium text-slate-700"
+              >
+                <option value="">Unassigned</option>
+                {availableBatches.map((b) => (
+                  <option key={b.id || b.code} value={b.name}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {!isEditMode && (
@@ -142,3 +166,4 @@ export default function UserModal({ isOpen, onClose, onSubmit, user = null }) {
     </div>
   );
 }
+

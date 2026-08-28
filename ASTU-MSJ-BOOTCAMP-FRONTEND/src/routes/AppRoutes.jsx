@@ -4,6 +4,9 @@ import ProtectedRoute from './ProtectedRoute';
 import RoleRoute from './RoleRoute';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import Users from '../pages/admin/Users/Users';
+import Batches from '../pages/admin/Batches/Batches';
+import AdminAnnouncements from '../pages/admin/Announcements/AdminAnnouncements';
+import StudentAnnouncements from '../pages/student/Announcements/StudentAnnouncements';
 import Login from '../pages/auth/Login/Login';
 import Unauthorized from '../pages/public/Unauthorized';
 import MentorAttendance from '../pages/mentor/Attendance/MentorAttendance';
@@ -31,6 +34,22 @@ export default function AppRoutes() {
             element={
               <DashboardLayout>
                 <Users />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/admin/batches"
+            element={
+              <DashboardLayout>
+                <Batches />
+              </DashboardLayout>
+            }
+          />
+          <Route
+            path="/admin/announcements"
+            element={
+              <DashboardLayout>
+                <AdminAnnouncements />
               </DashboardLayout>
             }
           />
@@ -70,6 +89,14 @@ export default function AppRoutes() {
               </DashboardLayout>
             }
           />
+          <Route
+            path="/mentor/announcements"
+            element={
+              <DashboardLayout>
+                <AdminAnnouncements />
+              </DashboardLayout>
+            }
+          />
         </Route>
 
         {/* Student Academic Journey Routes */}
@@ -106,6 +133,14 @@ export default function AppRoutes() {
               </DashboardLayout>
             }
           />
+          <Route
+            path="/student/announcements"
+            element={
+              <DashboardLayout>
+                <StudentAnnouncements />
+              </DashboardLayout>
+            }
+          />
         </Route>
       </Route>
 
@@ -115,3 +150,4 @@ export default function AppRoutes() {
     </Routes>
   );
 }
+

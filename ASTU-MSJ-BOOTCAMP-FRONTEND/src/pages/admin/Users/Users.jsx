@@ -4,17 +4,26 @@ import UserFilters from './components/UserFilters';
 import UserModal from './components/UserModal';
 import DeleteModal from './components/DeleteModal';
 import { getUsers, createUser, updateUser, deleteUser } from '../../../services/userService';
+import { getBatches } from '../../../services/batchService';
+
+const defaultBatches = [
+  { id: 1, name: 'Bootcamp 2026 Cohort A', code: 'ASTU-2026-A' },
+  { id: 2, name: 'Bootcamp 2026 Cohort B', code: 'ASTU-2026-B' },
+  { id: 3, name: 'Bootcamp 2025 Graduate Cohort', code: 'ASTU-2025-FX' },
+];
 
 const initialSampleUsers = [
-  { id: 1, name: 'Ahmed', email: 'ahmed@example.com', role: 'Student' },
-  { id: 2, name: 'Sara', email: 'sara@example.com', role: 'Mentor' },
-  { id: 3, name: 'Ali', email: 'ali@example.com', role: 'Student' },
+  { id: 1, name: 'Ahmed', email: 'ahmed@example.com', role: 'Student', batch: 'Bootcamp 2026 Cohort A' },
+  { id: 2, name: 'Sara', email: 'sara@example.com', role: 'Mentor', batch: 'Bootcamp 2026 Cohort A' },
+  { id: 3, name: 'Ali', email: 'ali@example.com', role: 'Student', batch: 'Bootcamp 2026 Cohort B' },
 ];
 
 const Users = () => {
   const [users, setUsers] = useState(initialSampleUsers);
+  const [batches, setBatches] = useState(defaultBatches);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('All');
+  const [batchFilter, setBatchFilter] = useState('All');
   const [loading, setLoading] = useState(false);
 
   // Modal states
@@ -22,15 +31,27 @@ const Users = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [deletingUser, setDeletingUser] = useState(null);
 
-  // Fetch users from API on mount
+  // Fetch users and batches on mount
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const res = await getUsers();
-        const apiUsers = Array.isArray(res) ? res : res?.users || res?.data;
-        if (apiUsers && apiUsers.length > 0) {
-          setUsers(apiUsers);
+        const [userRes, batchRes] = await Promise.allSettled([getUsers(), getBatches()]);
+
+        if (userRes.status === 'fulfilled') {
+          const res = userRes.value;
+          const apiUsers = Array.isArray(res) ? res : res?.users || res?.data;
+          if (apiUsers && apiUsers.length > 0) {
+            setUsers(apiUsers);
+          }
+        }
+
+        if (batchRes.status === 'fulfilled') {
+          const res = batchRes.value;
+          const apiBatches = Array.isArray(res) ? res : res?.batches || res?.data;
+          if (apiBatches && apiBatches.length > 0) {
+            setBatches(apiBatches);
+          }
         }
       } catch (err) {
         console.warn('API unavailable, using initial state:', err);
@@ -39,10 +60,10 @@ const Users = () => {
       }
     };
 
-    fetchUsers();
+    fetchData();
   }, []);
 
-  // Filter users by search term and role filter
+  // Filter users by search term, role, and batch
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
       !search.trim() ||
@@ -53,7 +74,11 @@ const Users = () => {
       roleFilter === 'All' ||
       u.role?.toLowerCase() === roleFilter.toLowerCase();
 
-    return matchesSearch && matchesRole;
+    const matchesBatch =
+      batchFilter === 'All' ||
+      u.batch?.toLowerCase() === batchFilter.toLowerCase();
+
+    return matchesSearch && matchesRole && matchesBatch;
   });
 
   // Handle Add User
@@ -106,7 +131,10 @@ const Users = () => {
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       {/* Header Bar */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-800 tracking-tight">User Management</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">User Management</h1>
+          <p className="text-xs text-slate-500 mt-1">Manage accounts, assign roles, and allocate users to bootcamp batches.</p>
+        </div>
         <button
           type="button"
           onClick={() => setIsAddModalOpen(true)}
@@ -125,6 +153,9 @@ const Users = () => {
         onSearchChange={setSearch}
         roleFilter={roleFilter}
         onRoleFilterChange={setRoleFilter}
+        batchFilter={batchFilter}
+        onBatchFilterChange={setBatchFilter}
+        availableBatches={batches}
       />
 
       {/* Users Table */}
@@ -145,6 +176,7 @@ const Users = () => {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSubmit={handleCreateUser}
+        availableBatches={batches}
       />
 
       {/* Edit User Modal */}
@@ -153,6 +185,7 @@ const Users = () => {
         user={editingUser}
         onClose={() => setEditingUser(null)}
         onSubmit={handleUpdateUser}
+        availableBatches={batches}
       />
 
       {/* Delete User Confirmation Modal */}
@@ -167,3 +200,4 @@ const Users = () => {
 };
 
 export default Users;
+
