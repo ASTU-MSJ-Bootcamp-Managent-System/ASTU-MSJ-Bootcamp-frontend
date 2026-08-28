@@ -10,6 +10,7 @@ import {
   removeStudentFromBatch as apiRemoveStudentFromBatch,
   assignMentor as apiAssignMentor,
 } from "../../api/client";
+import { handleApiError, showSuccess } from "../../api/toast";
 
 export default function Batches({
   role,
@@ -45,10 +46,11 @@ export default function Batches({
           f.get("endDate") ||
           new Date(Date.now() + 90 * 864e5).toISOString(),
       });
+      showSuccess("Batch created successfully.");
       await refresh();
       setOpen(false);
     } catch (err) {
-      alert(err.message || "Failed to create batch.");
+      handleApiError(err, "Failed to create batch.");
     } finally {
       setSaving(false);
     }
@@ -57,9 +59,10 @@ export default function Batches({
   async function deleteBatch(id) {
     try {
       await apiDeleteBatch(token, id);
+      showSuccess("Batch deleted.");
       await refresh();
     } catch (err) {
-      alert(err.message || "Failed to delete batch.");
+      handleApiError(err, "Failed to delete batch.");
     }
   }
 
@@ -75,10 +78,11 @@ export default function Batches({
         }
       }
       await apiAssignMentor(token, batchId, studentId, mentorId);
+      showSuccess("Mentor assigned to student.");
       await refresh();
       setAssignModal(null);
     } catch (err) {
-      alert(err.message || "Failed to assign mentor.");
+      handleApiError(err, "Failed to assign mentor.");
     }
   }
 
@@ -86,9 +90,10 @@ export default function Batches({
   async function handleRemoveStudent(batchId, studentId) {
     try {
       await apiRemoveStudentFromBatch(token, batchId, studentId);
+      showSuccess("Student removed from batch.");
       await refresh();
     } catch (err) {
-      alert(err.message || "Failed to remove student.");
+      handleApiError(err, "Failed to remove student.");
     }
   }
 
@@ -96,9 +101,10 @@ export default function Batches({
   async function handleEnrollStudent(batchId, studentId) {
     try {
       await apiEnrollStudent(token, batchId, studentId);
+      showSuccess("Student enrolled in batch.");
       await refresh();
     } catch (err) {
-      alert(err.message || "Failed to enroll student.");
+      handleApiError(err, "Failed to enroll student.");
     }
   }
 
@@ -106,9 +112,10 @@ export default function Batches({
   async function handleDetachMentor(batchId, mentorId) {
     try {
       await apiDetachMentor(token, batchId, mentorId);
+      showSuccess("Mentor removed from batch.");
       await refresh();
     } catch (err) {
-      alert(err.message || "Failed to remove mentor from batch.");
+      handleApiError(err, "Failed to remove mentor from batch.");
     }
   }
 
@@ -116,9 +123,10 @@ export default function Batches({
   async function handleAttachMentor(batchId, mentorId) {
     try {
       await apiAttachMentor(token, batchId, mentorId);
+      showSuccess("Mentor added to batch.");
       await refresh();
     } catch (err) {
-      alert(err.message || "Failed to add mentor to batch.");
+      handleApiError(err, "Failed to add mentor to batch.");
     }
   }
 

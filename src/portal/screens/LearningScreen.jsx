@@ -6,6 +6,7 @@ import {
   updateProgress as apiUpdateProgress,
   deleteProgress as apiDeleteProgress,
 } from "../../api/client";
+import { handleApiError, showSuccess, showWarning } from "../../api/toast";
 
 const statusLabel = {
   COMPLETED: "Completed",
@@ -73,11 +74,11 @@ export default function Learning({ people = [], progress = [], role, me, token, 
     const batchId = resolvedBatchId;
 
     if (!isValidMongoId(studentId)) {
-      alert("Please select a valid student.");
+      showWarning("Please select a valid student.");
       return;
     }
     if (!isValidMongoId(batchId)) {
-      alert("The selected student has no batch assigned. Please enroll them in a batch first.");
+      showWarning("This student has no batch. Enroll them first.");
       return;
     }
 
@@ -90,11 +91,12 @@ export default function Learning({ people = [], progress = [], role, me, token, 
         status: f.get("status"),
         notes: f.get("notes") || "",
       });
+      showSuccess("Progress record created.");
       await refresh();
       setCreateOpen(false);
       setSelectedStudentId("");
     } catch (err) {
-      alert(err.message || "Failed to create progress record.");
+      handleApiError(err, "Failed to create progress record.");
     } finally {
       setSaving(false);
     }
@@ -110,10 +112,11 @@ export default function Learning({ people = [], progress = [], role, me, token, 
         status: f.get("status"),
         notes: f.get("notes") || "",
       });
+      showSuccess("Progress updated.");
       await refresh();
       setEditItem(null);
     } catch (err) {
-      alert(err.message || "Failed to update progress.");
+      handleApiError(err, "Failed to update progress.");
     } finally {
       setSaving(false);
     }
@@ -123,9 +126,10 @@ export default function Learning({ people = [], progress = [], role, me, token, 
   async function handleDelete(id) {
     try {
       await apiDeleteProgress(token, id);
+      showSuccess("Progress record deleted.");
       await refresh();
     } catch (err) {
-      alert(err.message || "Failed to delete progress.");
+      handleApiError(err, "Failed to delete progress.");
     }
   }
 

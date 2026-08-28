@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { UserMinus, UserCheck, UserPlus, Trash2, Edit3, Shield, X } from "lucide-react";
 import { Toolbar, Modal } from "../components/Shared";
+import toast from "react-hot-toast";
+import { handleApiError } from "../../api/toast";
 
 export default function People({
   role,
@@ -188,7 +190,12 @@ export default function People({
                             <button
                               onClick={async () => {
                                 if (!confirm(`Approve ${x.name}?`)) return;
-                                await approveUser(x._id);
+                                try {
+                                  await approveUser(x._id);
+                                  toast.success(`${x.name} approved successfully.`);
+                                } catch (e) {
+                                  toast.error(e.message);
+                                }
                               }}
                               className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-green-600"
                               title="Approve account"
@@ -258,7 +265,7 @@ export default function People({
                           try {
                             await detachMentor(b._id, m._id);
                           } catch (e) {
-                            console.error("Failed to detach mentor:", e);
+                            toast.error(e.message || "Failed to remove mentor.");
                           }
                         }
                       }
@@ -357,7 +364,7 @@ export default function People({
                           await assignMentor(assignModal.student, m._id);
                           setAssignModal(null);
                         } catch (e) {
-                          alert(e.message);
+                          handleApiError(e);
                         }
                       }}
                       className={
@@ -407,13 +414,13 @@ export default function People({
         >
           <EditStudentForm
             student={editModal.student}
-            batches={batches}
-            onSave={async (changes) => {
+            batches={batches}                            onSave={async (changes) => {
               try {
                 await updateUserProfile(editModal.student._id, changes);
+                toast.success("Student updated successfully.");
                 setEditModal(null);
               } catch (e) {
-                alert(e.message);
+                toast.error(e.message);
               }
             }}
             onCancel={() => setEditModal(null)}
@@ -434,9 +441,10 @@ export default function People({
             onEnroll={async (batchId, studentId) => {
               try {
                 await enrollStudent(batchId, studentId);
+                toast.success("Student enrolled successfully.");
                 setEnrollModal(null);
               } catch (e) {
-                alert(e.message);
+                toast.error(e.message);
               }
             }}
             onCancel={() => setEnrollModal(null)}
@@ -471,9 +479,10 @@ export default function People({
                       }
                       // Enroll in new batch
                       await enrollStudent(b._id, batchChangeModal.student._id);
+                      toast.success(`Moved to ${b.name} successfully.`);
                       setBatchChangeModal(null);
                     } catch (e) {
-                      alert(e.message);
+                      toast.error(e.message);
                     }
                   }}
                   disabled={isCurrent}
@@ -527,9 +536,10 @@ export default function People({
               onClick={async () => {
                 try {
                   await rejectUser(confirmDelete.student._id);
+                  toast.success(`${confirmDelete.student.name} deleted.`);
                   setConfirmDelete(null);
                 } catch (e) {
-                  alert(e.message);
+                  toast.error(e.message);
                 }
               }}
               className="flex-1 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700"
@@ -561,9 +571,10 @@ export default function People({
               onClick={async () => {
                 try {
                   await updateUserRole(confirmMakeMentor.student._id, "MENTOR");
+                  toast.success(`${confirmMakeMentor.student.name} is now a mentor.`);
                   setConfirmMakeMentor(null);
                 } catch (e) {
-                  alert(e.message);
+                  toast.error(e.message);
                 }
               }}
               className="flex-1 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700"
@@ -586,9 +597,10 @@ export default function People({
             onAdd={async (batchId, mentorId) => {
               try {
                 await attachMentor(batchId, mentorId);
+                toast.success("Mentor attached to batch successfully.");
                 setAddMentorModal(false);
               } catch (e) {
-                alert(e.message);
+                toast.error(e.message);
               }
             }}
             onCancel={() => setAddMentorModal(false)}

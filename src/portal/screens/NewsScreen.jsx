@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Megaphone, Trash2, Edit3 } from "lucide-react";
 import { Toolbar, Modal } from "../components/Shared";
+import toast from "react-hot-toast";
+import { showSuccess } from "../../api/toast";
 import {
   createAnnouncement as apiCreateAnnouncement,
   updateAnnouncement as apiUpdateAnnouncement,
@@ -35,10 +37,11 @@ export default function News({
         content: f.get("content"),
         targetAudience: f.get("targetAudience"),
       });
+      showSuccess("Announcement published.");
       await refresh();
       setOpen(false);
     } catch (err) {
-      alert(err.message || "Failed to publish.");
+      toast.error(err.message || "Failed to publish.");
     } finally {
       setSaving(false);
     }
@@ -54,10 +57,11 @@ export default function News({
         content: f.get("content"),
         targetAudience: f.get("targetAudience"),
       });
+      showSuccess("Announcement updated.");
       await refresh();
       setEditItem(null);
     } catch (err) {
-      alert(err.message || "Failed to update.");
+      toast.error(err.message || "Failed to update.");
     } finally {
       setSaving(false);
     }
@@ -66,9 +70,10 @@ export default function News({
   async function remove(id) {
     try {
       await apiDeleteAnnouncement(token, id);
+      showSuccess("Announcement deleted.");
       await refresh();
     } catch (err) {
-      alert(err.message || "Failed to delete.");
+      toast.error(err.message || "Failed to delete.");
     }
   }
 

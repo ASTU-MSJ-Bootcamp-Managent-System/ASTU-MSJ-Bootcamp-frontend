@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { UserCheck, UserX } from "lucide-react";
 import { Toolbar } from "../components/Shared";
+import toast from "react-hot-toast";
+import { showSuccess } from "../../api/toast";
 import { approveUser as apiApproveUser, deleteUser as apiDeleteUser } from "../../api/client";
 
 export default function EnrollmentRequestsScreen({
@@ -19,9 +21,10 @@ export default function EnrollmentRequestsScreen({
     setProcessing(person._id);
     try {
       await apiApproveUser(token, person._id);
+      showSuccess(`${person.name} approved.`);
       await refresh();
     } catch (err) {
-      alert(err.message || "Failed to approve.");
+      toast.error(err.message || "Failed to approve.");
     } finally {
       setProcessing(null);
     }
@@ -31,9 +34,10 @@ export default function EnrollmentRequestsScreen({
     setProcessing(person._id);
     try {
       await apiDeleteUser(token, person._id);
+      showSuccess(`${person.name} rejected.`);
       await refresh();
     } catch (err) {
-      alert(err.message || "Failed to reject.");
+      toast.error(err.message || "Failed to reject.");
     } finally {
       setProcessing(null);
     }

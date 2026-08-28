@@ -39,6 +39,7 @@ import {
   changePassword,
   clearCache,
 } from "../api/client";
+import { handleApiError, showSuccess } from "../api/toast";
 
 /* ── Throttled attendance fetch ─────────────────────────────────────── */
 const CHUNK = 3;
@@ -495,7 +496,7 @@ export default function StudentMentorPortal() {
         myStudentIds ? mappedProgress.filter((p) => myStudentIds.has(p.studentId)) : mappedProgress,
       );
     } catch (err) {
-      console.error("Portal data fetch failed:", err);
+      handleApiError(err, "Failed to load portal data.");
     } finally {
       setLoading(false);
     }
@@ -539,70 +540,79 @@ export default function StudentMentorPortal() {
       }
       await assignMentor(token, student.batchId, student._id, mentorId);
       await fetchData();
-    } catch (e) { alert(e.message); }
+    } catch (e) { handleApiError(e); }
   }
 
   async function handleApproveUser(id) {
     try {
       await approveUser(token, id);
+      showSuccess("Student approved.");
       await fetchData();
-    } catch (e) { alert(e.message); }
+    } catch (e) { handleApiError(e); }
   }
 
   async function handleRejectUser(id) {
     try {
       await deleteUser(token, id);
+      showSuccess("Student removed.");
       await fetchData();
-    } catch (e) { alert(e.message); }
+    } catch (e) { handleApiError(e); }
   }
 
   async function handleCreateBatch(d) {
     try {
       await attachMentor(token, d.batchId, d.mentorId);
+      showSuccess("Mentor attached to batch.");
       await fetchData();
-    } catch (e) { alert(e.message); }
+    } catch (e) { handleApiError(e); }
   }
 
   async function handleRemoveStudentFromBatch(batchId, studentId) {
     try {
       await removeStudentFromBatch(token, batchId, studentId);
+      showSuccess("Student removed from batch.");
       await fetchData();
-    } catch (e) { alert(e.message); }
+    } catch (e) { handleApiError(e); }
   }
 
   async function handleUpdateUserRole(id, newRole) {
     try {
       await updateUserRole(token, id, newRole);
+      showSuccess("Role updated.");
       await fetchData();
-    } catch (e) { alert(e.message); }
+    } catch (e) { handleApiError(e); }
   }
 
   async function handleUpdateUserProfile(id, changes) {
     try {
       await updateUserProfile(token, { ...changes, userId: id });
+      showSuccess("Profile updated.");
       await fetchData();
-    } catch (e) { alert(e.message); }
+    } catch (e) { handleApiError(e); }
   }
 
   async function handleEnrollStudent(batchId, studentId) {
     try {
       await enrollStudent(token, batchId, studentId);
+      showSuccess("Student enrolled.");
       await fetchData();
-    } catch (e) { alert(e.message); }
+    } catch (e) { handleApiError(e); }
   }
 
   async function handleAttachMentor(batchId, mentorId) {
     try {
       await attachMentor(token, batchId, mentorId);
+      showSuccess("Mentor attached.");
       await fetchData();
-    } catch (e) { alert(e.message); }
+    } catch (e) { handleApiError(e); }
   }
 
   async function handleDetachMentor(batchId, mentorId) {
     try {
       await detachMentor(token, batchId, mentorId);
+      showSuccess("Mentor detached.");
       await fetchData();
-    } catch (e) { alert(e.message); }
+    } catch (e) { handleApiError(e); }
   }
 
   /* ── Auth screens ───────────────────────────────────────────────── */

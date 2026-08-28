@@ -10,6 +10,7 @@ import {
   resubmitSubmission as apiResubmitSubmission,
   requestResubmission as apiRequestResubmission,
 } from "../../api/client";
+import { handleApiError, showSuccess, showWarning } from "../../api/toast";
 
 export default function Assignments({
   role,
@@ -51,10 +52,11 @@ export default function Assignments({
         deadline: new Date(f.get("deadline")).toISOString(),
         maximumScore: +f.get("max") || 100,
       });
+      showSuccess("Assignment created successfully.");
       await refresh();
       setCreate(false);
     } catch (err) {
-      alert(err.message || "Failed to create assignment.");
+      handleApiError(err, "Failed to create assignment.");
     } finally {
       setSaving(false);
     }
@@ -73,10 +75,11 @@ export default function Assignments({
         deadline: new Date(f.get("deadline")).toISOString(),
         maximumScore: +f.get("max") || 100,
       });
+      showSuccess("Assignment updated successfully.");
       await refresh();
       setEditItem(null);
     } catch (err) {
-      alert(err.message || "Failed to update assignment.");
+      handleApiError(err, "Failed to update assignment.");
     } finally {
       setSaving(false);
     }
@@ -86,9 +89,10 @@ export default function Assignments({
   async function deleteAssignment(id) {
     try {
       await apiDeleteAssignment(token, id);
+      showSuccess("Assignment deleted.");
       await refresh();
     } catch (err) {
-      alert(err.message || "Failed to delete assignment.");
+      handleApiError(err, "Failed to delete assignment.");
     }
   }
 
@@ -104,10 +108,11 @@ export default function Assignments({
         liveDemoUrl: f.get("demo") || "",
         notes: f.get("note") || "",
       });
+      showSuccess("Submission sent successfully.");
       await refresh();
       setSubmit(null);
     } catch (err) {
-      alert(err.message || "Failed to submit.");
+      handleApiError(err, "Failed to submit.");
     } finally {
       setSaving(false);
     }
@@ -124,10 +129,11 @@ export default function Assignments({
         liveDemoUrl: f.get("demo") || "",
         notes: f.get("note") || "",
       });
+      showSuccess("Resubmission sent successfully.");
       await refresh();
       setResubmitItem(null);
     } catch (err) {
-      alert(err.message || "Failed to resubmit.");
+      handleApiError(err, "Failed to resubmit.");
     } finally {
       setSaving(false);
     }
@@ -137,9 +143,10 @@ export default function Assignments({
   async function doRequestResubmission(submissionId) {
     try {
       await apiRequestResubmission(token, submissionId);
+      showSuccess("Resubmission requested.");
       await refresh();
     } catch (err) {
-      alert(err.message || "Failed to request resubmission.");
+      handleApiError(err, "Failed to request resubmission.");
     }
   }
 
@@ -150,16 +157,16 @@ export default function Assignments({
     const score = Number(f.get("grade"));
     const max = review.maximumScore || 100;
     if (Number.isNaN(score) || score < 0 || score > max) {
-      alert(`Score must be between 0 and ${max}.`);
+      showWarning(`Score must be between 0 and ${max}.`);
       return;
     }
     const feedbackText = (f.get("feedback") || "").trim();
     if (!feedbackText) {
-      alert("Please enter feedback before publishing.");
+      showWarning("Please enter feedback before publishing.");
       return;
     }
     if (!review.subId) {
-      alert("Could not identify the submission to grade. Please refresh and try again.");
+      showWarning("Could not identify the submission. Please refresh.");
       return;
     }
     setSaving(true);
@@ -168,10 +175,11 @@ export default function Assignments({
         score: score,
         feedback: feedbackText,
       });
+      showSuccess("Submission graded successfully.");
       await refresh();
       setReview(null);
     } catch (err) {
-      alert(err.message || "Failed to grade.");
+      handleApiError(err, "Failed to grade.");
     } finally {
       setSaving(false);
     }

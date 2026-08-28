@@ -6,6 +6,7 @@ import {
   updateAttendance as apiUpdateAttendance,
   getAttendancePercentage as apiGetAttendancePercentage,
 } from "../../api/client";
+import { handleApiError, showSuccess, showWarning } from "../../api/toast";
 
 const statusLabel = {
   PRESENT: "Present",
@@ -147,7 +148,7 @@ export default function Attendance({
       ([, s]) => s && s !== "—",
     );
     if (toSave.length === 0) {
-      alert("No attendance changes to save.");
+      showWarning("No attendance changes to save.");
       return;
     }
     setSaving(true);
@@ -164,7 +165,7 @@ export default function Attendance({
         /* Use the student's actual batchId from the people list */
         const batchId = student?.batchId;
         if (!batchId) {
-          alert(`Cannot save attendance for ${student?.name || "unknown"} — student has no batch assigned.`);
+          showWarning(`Cannot save attendance for ${student?.name || "unknown"} — student has no batch.`);
           failed++;
           continue;
         }
@@ -178,19 +179,19 @@ export default function Attendance({
           });
           saved++;
         } catch (err) {
-          console.error("Failed to save attendance for", studentId, err);
+          /* individual record error — counted in failed */
           failed++;
         }
       }
       setRecords({});
       await refresh();
       if (failed > 0) {
-        alert(`Saved ${saved} record(s). ${failed} failed — check console for details.`);
+        if (failed > 0) showWarning(`${saved} saved, ${failed} failed.`);
       } else {
-        alert("Attendance saved.");
+        showSuccess("Attendance saved.");
       }
     } catch (err) {
-      alert(err.message || "Failed to save attendance.");
+      handleApiError(err, "Failed to save attendance.");
     } finally {
       setSaving(false);
     }
@@ -215,10 +216,11 @@ export default function Attendance({
         status: editStatus,
         note: editNote,
       });
+      showSuccess("Attendance updated.");
       cancelEdit();
       await refresh();
     } catch (err) {
-      alert(err.message || "Failed to update attendance.");
+      handleApiError(err, "Failed to update attendance.");
     }
   }
 
