@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import myLordImg from "../data/my-lord.webp";
+import logoImg from "../data/logo.jpg";
 
 const field =
   "mt-2 block w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100";
@@ -8,8 +9,8 @@ const action =
   "inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-800";
 export function Mark() {
   return (
-    <div className="grid size-10 place-items-center rounded-full border border-current text-[10px] font-bold">
-      MSJ
+    <div className="grid size-10 place-items-center overflow-hidden rounded-full border border-current">
+      <img src={logoImg} alt="MSJ" className="h-full w-full object-cover" />
     </div>
   );
 }
