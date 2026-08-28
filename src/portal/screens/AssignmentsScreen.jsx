@@ -97,7 +97,7 @@ export default function Assignments({
     setSaving(true);
     try {
       await apiGradeSubmission(token, review.subId, {
-        grade: score,
+        score: score,
         feedback: feedbackText,
       });
       await refresh();
@@ -136,7 +136,7 @@ export default function Assignments({
           const pendingSubs =
             role !== "student"
               ? submissions.filter(
-                  (s) => s.assignmentId === a._id && s.grade == null,
+                  (s) => s.assignmentId === a._id && (s.grade ?? s.score) == null,
                 )
               : [];
 
@@ -157,9 +157,9 @@ export default function Assignments({
                     : "No deadline"}{" "}
                   · {a.maximumScore} points
                 </p>
-                {mySub?.grade != null && (
+                {(mySub?.grade ?? mySub?.score) != null && (
                   <small className="feedback">
-                    Grade {mySub.grade}/{a.maximumScore} · {mySub.feedback}
+                    Grade {mySub.grade ?? mySub.score}/{a.maximumScore} · {mySub.feedback}
                   </small>
                 )}
               </div>
@@ -167,7 +167,7 @@ export default function Assignments({
                 <span
                   className={
                     "status " +
-                    (mySub?.grade != null
+                    ((mySub?.grade ?? mySub?.score) != null
                       ? "green"
                       : mySub
                         ? "amber"
@@ -175,7 +175,7 @@ export default function Assignments({
                   }
                 >
                   {mySub
-                    ? mySub.grade != null
+                    ? (mySub.grade ?? mySub.score) != null
                       ? "Graded"
                       : "Submitted"
                     : "Not submitted"}
