@@ -14,6 +14,7 @@ import {
   logoutUser,
   requestPasswordReset,
   getUsers,
+  getUserProfile,
   getBatches,
   createBatch,
   updateBatch,
@@ -29,6 +30,7 @@ import {
   approveUser,
   createUser,
   updateUser,
+  updateUserProfile,
   updateUserRole,
   deleteUser,
   changePassword,
@@ -201,12 +203,19 @@ export default function App() {
         if (st?.t) s.attendance = Math.round((st.p / st.t) * 100);
       }
 
-      /* ── Admin (current user) ─────────────────────────────────────── */
-      const me =
-        users.find((u) => u.role === "ADMIN" && u.isApproved) || data.admin;
+      /* ── Admin profile (via /api/users/profile) ─────────────────── */
+      let me = users.find((u) => u.role === "ADMIN" && u.isApproved);
+      try {
+        const profileRes = await getUserProfile(token);
+        if (profileRes?.data) me = profileRes.data;
+      } catch { /* fallback to user from list */ }
 
       setData({
-        admin: { _id: me._id, name: me.name || "Administrator", email: me.email || "" },
+        admin: {
+          _id: me?._id || null,
+          name: me?.name || "Administrator",
+          email: me?.email || "",
+        },
         students,
         mentors,
         requests,
@@ -355,7 +364,7 @@ export default function App() {
       if (newPassword)
         await changePassword(token, { currentPassword, newPassword });
       if (name || email)
-        await updateUser(token, data.admin._id, { name, email });
+        await updateUserProfile(token, { name, email });
       await refresh();
     } catch (e) { throw e; }
   }

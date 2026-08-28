@@ -156,6 +156,13 @@ export function requestPasswordReset(email) {
   });
 }
 
+export function resetPasswordConfirm(token, newPassword) {
+  return request("/api/auth/reset-password/confirm", {
+    method: "POST",
+    body: JSON.stringify({ token, newPassword }),
+  });
+}
+
 export function logoutUser(token) {
   clearCache();
   return request("/api/auth/logout", { method: "POST", token });
@@ -175,6 +182,10 @@ export function getUsers(token, query) {
   return protectedRequest(`/api/users${queryString(query)}`, token, {
     useCache: true,
   });
+}
+
+export function getUserById(token, id) {
+  return protectedRequest(`/api/users/${id}`, token, { useCache: true });
 }
 
 export function createUser(token, user) {
@@ -264,6 +275,12 @@ export function assignMentor(token, batchId, studentId, mentorId) {
     "POST",
     { mentorId },
   );
+}
+
+export function getMentorStudents(token) {
+  return protectedRequest("/api/batches/mentor-students", token, {
+    useCache: true,
+  });
 }
 
 /* ── Attendance ─────────────────────────────────────────────────────── */
