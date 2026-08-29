@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Eye, EyeOff } from "lucide-react";
 
 export function Toolbar({ title, action, onAction }) {
   return (
@@ -103,5 +103,31 @@ export function Profile({ x, close, update }) {
         </button>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Reusable password input with show/hide toggle.
+ * Props: name, placeholder, required, minLength, className, defaultValue, ...rest
+ */
+export function PasswordField({ className, ...props }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        className={className || "mt-2 block w-full rounded-lg border border-slate-300 px-3 py-2.5 pr-10 text-sm outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"}
+        type={visible ? "text" : "password"}
+        {...props}
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        onClick={() => setVisible((v) => !v)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+        aria-label={visible ? "Hide password" : "Show password"}
+      >
+        {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+      </button>
+    </div>
   );
 }

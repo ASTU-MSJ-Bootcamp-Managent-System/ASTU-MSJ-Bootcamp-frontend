@@ -67,7 +67,6 @@ export default function OverviewPage({ data, open, setPage }) {
         <section className="rounded-xl border border-emerald-100 bg-white p-5">
           <h3 className="font-bold">Quick actions</h3>
           {[
-            ["Enroll a student", "student"],
             ["Create a batch", "course"],
             ["Record attendance", "attendance"],
           ].map(([label, type]) => (

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, CheckCircle2, LockKeyhole } from "lucide-react";
+import { ArrowRight, CheckCircle2, LockKeyhole, Eye, EyeOff } from "lucide-react";
 
 export default function AdminLogin({ onSignIn, requestReset }) {
   const [email, setEmail] = useState("");
@@ -7,6 +7,7 @@ export default function AdminLogin({ onSignIn, requestReset }) {
   const [error, setError] = useState("");
   const [forgotPassword, setForgotPassword] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  const [showPw, setShowPw] = useState(false);
 
   async function submit(event) {
     event.preventDefault();
@@ -81,13 +82,24 @@ export default function AdminLogin({ onSignIn, requestReset }) {
             {!forgotPassword && (
               <label className="block text-sm font-semibold text-stone-700">
                 Password
-                <input
-                  className="mt-2 block w-full rounded-lg border border-stone-300 px-3 py-2.5 text-sm outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  required
-                />
+                <div className="relative">
+                  <input
+                    className="mt-2 block w-full rounded-lg border border-stone-300 px-3 py-2.5 pr-10 text-sm outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
+                    type={showPw ? "text" : "password"}
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowPw((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                    aria-label={showPw ? "Hide password" : "Show password"}
+                  >
+                    {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </label>
             )}
             {error && (
