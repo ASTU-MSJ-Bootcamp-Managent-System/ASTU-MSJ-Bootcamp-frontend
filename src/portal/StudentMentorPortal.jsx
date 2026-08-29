@@ -143,7 +143,7 @@ export default function StudentMentorPortal() {
        * Merge them with the direct API results so we always have data.
        */
       const dashBatches = dash.batches || dash.batchList || [];
-      const dashStudents = dash.students || dash.studentList || [];
+      const dashStudents = (dash.assignedStudents?.students) || dash.students || dash.studentList || [];
       const batchList = rawBatches.length > 0 ? rawBatches : dashBatches;
 
       console.log("[Portal] role:", role);
@@ -233,48 +233,50 @@ export default function StudentMentorPortal() {
       const studentBatchMap = {}; // studentId → batch object
       const studentToMentorMap = {}; // studentId → mentorId
 
-      /* Source A: batch data (works for admin and mentor if batches are returned) */
+      /* Source A: batch data (works for admin and mentor if batches are returned)
+       * Student objects from batch now include assignedMentor (populated by backend). */
       for (const batch of batchList) {
-        const mentorIds = (batch.mentors || []).map(extractId).filter(Boolean);
         for (const s of batch.students || []) {
           const sId = extractId(s);
           if (!sId) continue;
           const fromBatch = typeof s === "object" ? s : {};
+          /* Merge: existing registry data < userById < batch data */
           studentRegistry[sId] = { ...studentRegistry[sId], ...userById[sId], ...fromBatch, _id: sId };
           studentBatchMap[sId] = batch;
-          if (mentorIds.length > 0) studentToMentorMap[sId] = mentorIds[0];
+          /* Use the student's own assignedMentor field if available,
+             otherwise fall back to the first mentor in the batch */
+          const studentAssignedMentor = extractId(fromBatch.assignedMentor);
+          if (studentAssignedMentor) {
+            studentToMentorMap[sId] = studentAssignedMentor;
+          } else if (!studentToMentorMap[sId]) {
+            const mentorIds = (batch.mentors || []).map(extractId).filter(Boolean);
+            if (mentorIds.length > 0) studentToMentorMap[sId] = mentorIds[0];
+          }
         }
       }
 
-      /* Source B: getMentorStudents endpoint (mentor-specific) */
+      /* Source B: getMentorStudents endpoint (mentor-specific)
+       * The API returns an array of User objects (students assigned to this mentor).
+       * Each user has an `assignedMentor` field (ObjectId or populated object). */
       const msData = mentorStudentsRes.data || [];
       for (const ms of msData) {
-        /* Flat pair: { mentor, student, batch } or { mentorId, studentId } */
-        const sId = extractId(ms.student) || ms.studentId || extractId(ms);
-        const mId = extractId(ms.mentor) || ms.mentorId;
+        /* The API returns User objects directly — the student IS the object */
+        const sId = ms._id || extractId(ms.student) || ms.studentId;
+        /* assignedMentor may be an ObjectId string or a populated { _id, name } */
+        const mId = extractId(ms.assignedMentor) || extractId(ms.mentor) || ms.mentorId;
         const bId = extractId(ms.batch) || ms.batchId;
-        if (mId && sId) {
-          studentToMentorMap[sId] = mId;
+        if (sId) {
+          /* Always add the student to the registry with full user data */
+          const fromMs = typeof ms === "object" ? ms : {};
           if (!studentRegistry[sId]) {
-            const fromMs = typeof ms.student === "object" ? ms.student : {};
             studentRegistry[sId] = { ...userById[sId], ...fromMs, _id: sId };
+          } else {
+            Object.assign(studentRegistry[sId], fromMs);
           }
+          if (mId) studentToMentorMap[sId] = mId;
         }
         if (sId && bId && !studentBatchMap[sId]) {
           studentBatchMap[sId] = batchList.find((b) => b._id === bId) || { _id: bId, name: "Batch" };
-        }
-        /* Grouped: { _id/mentor, students: [...] } */
-        if (ms.students && Array.isArray(ms.students)) {
-          const groupId = extractId(ms.mentor) || ms.mentorId || ms._id;
-          for (const s of ms.students) {
-            const sid = extractId(s) || (typeof s === "object" ? s._id : null);
-            if (!sid) continue;
-            if (groupId) studentToMentorMap[sid] = groupId;
-            if (!studentRegistry[sid]) {
-              const fromS = typeof s === "object" ? s : {};
-              studentRegistry[sid] = { ...userById[sid], ...fromS, _id: sid };
-            }
-          }
         }
       }
 
@@ -334,8 +336,9 @@ export default function StudentMentorPortal() {
         const batchMentors = batch?.mentors || [];
 
         /* Use ONLY the DB's assignedMentor field — never guess from batch membership.
-           If assignedMentor is null, the student has no mentor. */
-        const assignedMentorId = u.assignedMentor ? String(u.assignedMentor) : null;
+           If assignedMentor is null, the student has no mentor.
+           assignedMentor may be a string ObjectId or a populated { _id, name } object. */
+        const assignedMentorId = extractId(u.assignedMentor);
         const assignedMentorObj = assignedMentorId ? userById[assignedMentorId] : null;
         const assignedMentorName = assignedMentorObj?.name || "Unassigned";
 
