@@ -30,7 +30,6 @@ import {
   getAttendanceByBatch,
   getMentorStudents,
   approveUser,
-  createUser,
   updateUserProfile,
   updateUserRole,
   deleteUser,
@@ -440,27 +439,7 @@ export default function App() {
               await removeStudentFromBatch(token, s._batchId, s._id).catch(() => {});
             await enrollStudent(token, v._batchId, s._id);
           }
-        } else {
-          const res = await createUser(token, {
-            name: v.name,
-            email: v.email,
-            password: "TempPass123!",
-            role: "STUDENT",
-          });
-          const id = res.data?._id;
-          if (id) {
-            await approveUser(token, id);
-            if (v._batchId) await enrollStudent(token, v._batchId, id);
-          }
         }
-      } else if (type === "mentor" && index === undefined) {
-        const res = await createUser(token, {
-          name: v.name,
-          email: v.email,
-          password: "TempPass123!",
-          role: "MENTOR",
-        });
-        if (res.data?._id) await approveUser(token, res.data._id);
       } else if (type === "course") {
         if (index !== undefined) await updateCourse(data.courses[index]._id, v);
         else await createCourse(v);

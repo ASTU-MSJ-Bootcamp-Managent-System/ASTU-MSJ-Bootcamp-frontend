@@ -5,6 +5,7 @@ import { changePassword as apiChangePassword, updateUserProfile as apiUpdateUser
 export default function ProfileScreen({ token, me, refresh }) {
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
+  const isImmutable = me?.role === "STUDENT" || me?.role === "MENTOR";
 
   async function save(e) {
     e.preventDefault();
@@ -20,7 +21,7 @@ export default function ProfileScreen({ token, me, refresh }) {
       if (newPassword) {
         await apiChangePassword(token, { currentPassword, newPassword });
       }
-      if (name || email) {
+      if (!isImmutable && (name || email)) {
         await apiUpdateUserProfile(token, { name, email });
       }
       await refresh();
@@ -45,7 +46,8 @@ export default function ProfileScreen({ token, me, refresh }) {
             className="mt-2 block w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100"
             name="name"
             defaultValue={me?.name || ""}
-            required
+            disabled={isImmutable}
+            readOnly={isImmutable}
           />
         </label>
         <label className="block text-sm font-semibold text-slate-700">
@@ -55,7 +57,8 @@ export default function ProfileScreen({ token, me, refresh }) {
             name="email"
             type="email"
             defaultValue={me?.email || ""}
-            required
+            disabled={isImmutable}
+            readOnly={isImmutable}
           />
         </label>
 

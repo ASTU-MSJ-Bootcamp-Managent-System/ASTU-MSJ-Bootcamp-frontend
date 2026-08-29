@@ -21,10 +21,7 @@ export default function PeoplePage({
       <Intro
         title="People & access"
         text="Manage enrolled students, mentor assignments and account access."
-        action={() => open("student")}
-      >
-        Enroll student
-      </Intro>
+      />
       <Table
         heads={["Student", "Batch", "Mentor", "Attendance", "Status", ""]}
       >
@@ -168,14 +165,8 @@ export default function PeoplePage({
           </tr>
         ))}
       </Table>
-      <div className="mt-8 flex justify-between">
+      <div className="mt-8">
         <h2 className="font-display text-2xl">Mentors</h2>
-        <button
-          onClick={() => open("mentor")}
-          className="rounded-lg border px-3 py-2 text-sm font-bold"
-        >
-          Add mentor
-        </button>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         {data.mentors.map((m, i) => (
